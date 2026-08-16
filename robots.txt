@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ks278810.github.io/research-robo/sitemap.xml

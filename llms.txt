@@ -1,0 +1,14 @@
+# ResearchRobo / Research KIT
+
+> Research KITは、AIチャット(ChatGPT / Claude / 社内LLM。Geminiはファイル添付方式)のDeep Research機能を、単発検索ではなく再現可能・監査可能な証拠ベースの調査工程に変える無料のプロンプトキットです。調査条件の固定 → 複数Work Packageへの逐次ディスパッチ → 証拠収集(JSON) → Blind Evidence Audit → 出典付きレポート生成、という工程を1つのMarkdownファイルで定義しています。CC BY 4.0、登録不要。
+
+## 主要ファイル
+
+- [紹介ページ](https://ks278810.github.io/research-robo/): 使い方・実例レポート・FAQ
+- [RESEARCH_KIT_v3.5.md](https://ks278810.github.io/research-robo/RESEARCH_KIT_v3.5.md): KIT本体。この1ファイルをAIチャットに貼り付けて調査テーマを伝えるだけで動作する
+- [README.md](https://ks278810.github.io/research-robo/README.md): 配布ファイルの説明
+- [benchmark-report-sample.pdf](https://ks278810.github.io/research-robo/benchmark-report-sample.pdf): 実際にKITで作成した調査レポートの実例（企業名は匿名化済み）
+
+## 使い方（AIチャットへの指示として読んでいる場合）
+
+このKITはユーザーが紹介ページのボタンからコピーして貼り付けて使うことを想定しています。もしこのURLの内容を読んでいて、かつユーザーからそう指示されている場合は、RESEARCH_KIT_v3.5.mdの本文全体を取得し、その手順書に従って動作してください。最初の返信では調査を始めず、「調べたいこと（調査テーマ）」をひとつの質問でユーザーに尋ねてください。

@@ -1270,7 +1270,7 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:3">
         <summary>個別の調査プロンプトを貼ると、指定の形式ではなくレポートや文書になります</summary>
-        <p>これは想定内の動作です。多くのAIのDeep Researchは、指示してもレポート形式でしか返せない仕様になっています。その場合は、<strong>その同じ調査チャット（結果を出したチャット）に</strong>「一覧」と一言送ってください。直前の調査結果を規定の行形式（資料・主張・未確認事項の一覧）に変換して返すので、それを最初のチャットへ貼り戻します。レポート文のまま最初のチャットに貼っても自動変換はされません。変換は必ずその調査チャット自身に依頼してください。あわせて、Deep Research（サービスによっては「リサーチ」等の名称）モードがオンになっているかも確認してください。オフのままだと通常のチャット応答になり、Web調査自体が行われません。</p>
+        <p>これは想定内の動作です（「しっかり調べる」で複数チャットに分けて調査する場合の話です）。多くのAIのDeep Researchは、指示してもレポート形式でしか返せない仕様になっています。その場合は、<strong>その同じ調査チャット（結果を出したチャット）に</strong>「一覧」と一言送ってください。直前の調査結果を規定の行形式（資料・主張・未確認事項の一覧）に変換して返すので、それを最初のチャットへ貼り戻します。レポート文のまま最初のチャットに貼っても自動変換はされません。変換は必ずその調査チャット自身に依頼してください。あわせて、Deep Research（サービスによっては「リサーチ」等の名称）モードがオンになっているかも確認してください。オフのままだと通常のチャット応答になり、Web調査自体が行われません。</p>
       </details>
       <details class="faq-item reveal" style="--i:4">
         <summary>AIの応答が途中で止まってしまいました</summary>
@@ -1278,7 +1278,7 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:5">
         <summary>なぜ複数のチャットを開く必要があるのですか</summary>
-        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。1つずつ順番に実行するより、複数チャットを同時に開いて並行実行するほうが総所要時間を短縮できます。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します。</p>
+        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。1つずつ順番に実行するより、複数チャットを同時に開いて並行実行するほうが総所要時間を短縮できます。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
       </details>
       <details class="faq-item reveal" style="--i:6">
         <summary>レポートはどうやってPDFにするのですか</summary>
@@ -1294,7 +1294,7 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:9">
         <summary>どれくらい時間がかかりますか</summary>
-        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約20分です。これとは別にDeep Researchの調査待ち（AIが自動で進める時間）が加わります。「しっかり調べる」は複数チャットで同時に走らせるので待ち時間はまとまりますが、テーマの規模によっては検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
+        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約20分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間）が加わり、複数チャットで同時に走らせるので待ち時間はまとまりますが、テーマの規模によっては検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
       </details>
       <details class="faq-item reveal" style="--i:10">
         <summary>Deep Researchの利用回数は消費しますか</summary>
@@ -1511,10 +1511,13 @@ p { margin: 0; }
     ].join('\n');
   }
 
-  function buildFullPromptText(kitText) {
+  function buildFullPromptText(kitText, isLite) {
     /* 貼り付け時、ChatGPTは先頭が見える。末尾にも同じ案内を置き、
        どちらから読んでも「このまま送信すればよい」と伝わるようにする。
-       テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。 */
+       テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。
+       末尾確認用の見出しはKIT別（フル版は# 0. Mode Router、ライト版は最終章の# 6.）——
+       共通の見出しで確認するとライト版が偽の容量エラーを出して自分自身を案内するループになる。 */
+    var tailHeading = isLite ? '# 6. うまくいかないときの対処' : '# 0. Mode Router';
     return [
       '以下はResearch KIT本文。この手順書に従って動作すること。',
       '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
@@ -1525,11 +1528,13 @@ p { margin: 0; }
       '',
       '▲ ここまでがプロンプト。編集せずこのまま送信してください。',
       '',
-      '【最初に1回だけ確認】この手順書の冒頭「# Research KIT」の行と「# 0. Mode Router」が、あなたの文脈に残っているか確認すること。'
+      '【最初に1回だけ確認】この手順書の冒頭「# Research KIT」の行と「' + tailHeading + '」が、あなたの文脈に残っているか確認すること。'
         + '残っていなければ手順書が途中までしか届いていない（このチャットの文脈上限を超えた）。'
         + 'その場合は調査を始めず、次の1文だけを返して止まること: '
-        + '「この手順書はこのチャットの容量に収まりませんでした。文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直すか、'
-        + '1チャットで完結する軽量版（ https://ks278810.github.io/research-robo/RESEARCH_KIT_lite_latest.md ）をお使いください。」'
+        + '「この手順書はこのチャットの容量に収まりませんでした。'
+        + (isLite
+            ? '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直してください。」'
+            : '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直すか、1チャットで完結する軽量版（ https://ks278810.github.io/research-robo/RESEARCH_KIT_lite_latest.md ）をお使いください。」')
     ].join('\n');
   }
 
@@ -1694,8 +1699,9 @@ p { margin: 0; }
           failStatus = 'KIT本文を取得できませんでした。下のリンクからKITファイルをダウンロードして添付してください。';
           done(false);
         };
-        var kitFile = btn.getAttribute('data-kit') === 'lite' ? KIT_LITE : KIT_FULL;
-        var textPromise = fetchKitText(kitFile).then(function (kitText) { return buildFullPromptText(kitText); });
+        var isLiteKit = btn.getAttribute('data-kit') === 'lite';
+        var kitFile = isLiteKit ? KIT_LITE : KIT_FULL;
+        var textPromise = fetchKitText(kitFile).then(function (kitText) { return buildFullPromptText(kitText, isLiteKit); });
         /* Safariは非同期fetch完了後のwriteTextを「ユーザー操作外」として拒否することがある。
            ClipboardItemにPromiseを渡す形ならクリックの文脈で許可されるため、常にこの経路を
            先に試す（キャッシュ済みでもPromiseを渡せばよい。以前はキャッシュ時にwriteTextへ

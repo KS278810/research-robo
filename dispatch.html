@@ -505,6 +505,11 @@ footer.site-footer a { color: var(--color-mute); }
     s2 = RR.toHalfDigits(s2).replace(/[\uFF21-\uFF3A\uFF41-\uFF5A]/g, function (c) {
       return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
     });
+    /* AIが文末に句読点を続けて書き、それがWP_IDの末尾に残ることがある。
+       WP_IDは英数字・ハイフン・アンダースコアの想定なので、それ以外の記号が
+       末尾に残っていれば安全に剥がしてよい。剥がさないとカードのdata-wpと
+       一致せず、結果が届いているのにカードが見つからない事故になる */
+    s2 = s2.replace(/[\u3002\u3001\uFF0E\uFF0C,.:;)\uFF09\]\u3011\u300f\u300d]+$/, "");
     return s2;
   }
   /* 大文字小文字だけが違うID（wp01 と WP01）も同じカードとして扱うための比較用キー */
@@ -530,6 +535,14 @@ footer.site-footer a { color: var(--color-mute); }
     var doneCount = state.wps.filter(function (w) { return w.status === "done"; }).length;
     progressLabel.textContent = doneCount + " / " + total + " 回収済み";
     progressFill.style.width = total ? Math.round(doneCount / total * 100) + "%" : "0";
+    /* renderWpsはグリッドを毎回作り直すため、.wp-resultへ貼った生テキストを
+       事前に退避して作り直した後に戻す。退避しないと、1枚のカードへ貼っただけで
+       全カードの入力欄が空に戻ってしまう（他のカードにまだ送信していない
+       貼り付け内容が残っていた場合、それも消える） */
+    var savedTextareaValues = {};
+    Array.prototype.forEach.call(wpGrid.querySelectorAll("textarea.wp-result"), function (ta) {
+      if (ta.value) savedTextareaValues[ta.getAttribute("data-wp") || ""] = ta.value;
+    });
     wpGrid.innerHTML = "";
     state.wps.forEach(function (wp, idx) {
       var card = document.createElement("div");
@@ -556,6 +569,8 @@ footer.site-footer a { color: var(--color-mute); }
         '<ul class="wp-result-list check-list" data-wp-list="' + esc(wp.wpId) + '"></ul>' +
         '<div class="wp-links">手動で開く：' + chatLinks() + "</div>";
       wpGrid.appendChild(card);
+      var savedVal = savedTextareaValues[wp.wpId];
+      if (savedVal) card.querySelector("textarea.wp-result").value = savedVal;
     });
   }
 
@@ -596,8 +611,13 @@ footer.site-footer a { color: var(--color-mute); }
   }
 
   function precheckLines(text, wpHint) {
-    var norm = normText(text);
     var lines = normLines(text);
+    /* RESULT_COMPLETE/RESULT_PART行も箇条書き・太字(**)で装飾されることがある
+       （routePasteの2026-08-30修正と同じ理由）。normText止まりの生テキストに
+       対して判定すると、装飾された行を「未完結」と誤判定し、
+       wpIdも空のままになってカードが見つからなくなる。routePasteと同じく
+       normLines済みの行に対して判定する */
+    var norm = lines.join("\n");
     var out = { wpId: wpHint || "", s: 0, c: 0, n: 0, r: 0, v: 0, other: 0, complete: false, part: null, addendum: false, snippets: false, weak: 0, lines: lines.length };
     lines.forEach(function (l) {
       var bars = (l.match(/\|/g) || []).length;
@@ -844,6 +864,7 @@ footer.site-footer a { color: var(--color-mute); }
     routePaste: routePaste,
     handleRouted: handleRouted,
     precheckLines: precheckLines,
+    cleanWpId: cleanWpId,
     RESULT_TRIGGER: RESULT_TRIGGER,
     save: save,
     load: load,

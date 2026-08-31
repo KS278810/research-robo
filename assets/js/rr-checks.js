@@ -299,13 +299,17 @@
 
   /* 本文の引用に紐づく主張ID（C- で始まるもの）の一意集合。付録 .appendix 内は対象外。
      data-claim は「C-1-12 C-2-07」「C-012,C-044 X-01」のように複数IDを持てる */
-  function citedClaimSet(doc) {
+  function citedClaimSet(doc, rawOut) {
     var set = {};
     if (!doc) return set;
     Array.prototype.forEach.call(doc.querySelectorAll("sup a[data-claim]"), function (a) {
       if (!notInAppendix(a)) return;
       String(a.getAttribute("data-claim") || "").split(/[\s,]+/).forEach(function (tok) {
-        if (/^C-/.test(tok)) set[canonId(tok)] = true;
+        if (/^C-/.test(tok)) {
+          var id = canonId(tok);
+          set[id] = true;
+          if (rawOut && !rawOut[id]) rawOut[id] = tok; /* 表示用に本文の書式（C-1-02等）を残す */
+        }
       });
     });
     return set;
@@ -358,7 +362,7 @@
         var mergedInto = "";
         var mg = reason.match(/集約\s*[→>]\s*(C-[A-Za-z0-9_-]+)/);
         if (mg) mergedInto = canonId(mg[1]);
-        out.entries.push({ id: id, reason: reason, mergedInto: mergedInto });
+        out.entries.push({ id: id, rawId: idm[1], reason: reason, mergedInto: mergedInto });
       });
     }
     return out;
@@ -374,24 +378,42 @@
      ID集合をここから復元し、欠落IDを実名で返せるようにする。
      返り値: { present, entries:[{sec, ids:[]}], all:{id:true}, count, dup:[] } */
   function parsePlan(html) {
-    var out = { present: false, entries: [], all: {}, count: 0, dup: [] };
+    var out = { present: false, entries: [], all: {}, count: 0, dup: [], raw: {} };
+    /* script/style内の文字列（JSON-LD等）に紛れた偽PLANを拾わない。コメント自体が
+       PLANなので maskRegions（コメントも潰す）は使えず、script/styleだけ潰す */
+    var src = String(html || "").replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, function (mm) {
+      return new Array(mm.length + 1).join("\n");
+    });
     var re = /<!--\s*PLAN\s+sec-([0-9０-９]+)\s*[:：]([\s\S]*?)-->/gi, m;
     var seen = {};
-    while ((m = re.exec(String(html || "")))) {
+    var entryKeys = {};
+    while ((m = re.exec(src))) {
       out.present = true;
-      var sec = parseInt(digitsOf(m[1]), 10);
-      /* 欄は「章題 | ID列 [| 約n字]」。ID列の欄は「C-」を含む欄として選ぶ
-         （章題に「|」が入り込んだ場合や、欄数が2/3で揺れても取り違えない） */
+      /* digitsOfは全角数字を「削除」してしまう（sec-２ → sec:0）。半角化してから読む */
+      var sec = parseInt(toHalfDigits(m[1]), 10);
+      /* 欄は「章題 | ID列 [| 約n字]」。ID列の欄は「C-数字 形式のIDが最も多い欄」を選ぶ。
+         章題に SiC-MOSFET / PoC-検証 のような「C-」を含む語があっても、数字で始まらない
+         トークンはIDとして数えないので取り違えない */
       var fields = String(m[2]).split("|");
-      var ids = [];
+      var best = null;
       fields.forEach(function (f) {
-        if (!/C-/.test(f)) return;
-        (f.match(/C-[A-Za-z0-9_-]+/g) || []).forEach(function (raw) {
-          var id = canonId(raw);
-          if (ids.indexOf(id) < 0) ids.push(id);
-        });
+        var toks = f.match(/C-\d+(?:-\d+)*/g) || [];
+        if (toks.length && (!best || toks.length > best.length)) best = toks;
       });
-      if (!ids.length) continue;
+      if (!best) continue;
+      var ids = [];
+      best.forEach(function (rawId) {
+        var id = canonId(rawId);
+        if (ids.indexOf(id) < 0) {
+          ids.push(id);
+          if (!out.raw[id]) out.raw[id] = rawId; /* 表示用に原文の書式（C-1-02等）を残す */
+        }
+      });
+      /* 同一のPLAN行がもう一度現れた場合（AIが最終PARTでPLANを再掲する・PART 1を
+         二重に貼った等）は重複割当ではないので数えない */
+      var key = (isNaN(sec) ? 0 : sec) + "|" + ids.join(",");
+      if (entryKeys[key]) continue;
+      entryKeys[key] = true;
       ids.forEach(function (id) {
         if (seen[id]) { if (out.dup.indexOf(id) < 0) out.dup.push(id); }
         seen[id] = true;
@@ -680,10 +702,13 @@
           var d13 = "";
           if (!ok13) {
             if (hardGap) {
+              var plan13 = parsePlan(html);
               d13 = "本文に組み込む（引用する）ことが必要です。未引用の確認済み主張を該当する章の文へ書き入れ、その文に [[資料ID|C-ID]] を付けて、該当PARTを出し直してください。" +
                 "UNCITED行に理由を追記して済ませてはいけません——UNCITEDは確認済み " + total + " 件の5%＝" + uncCap + " 件までが上限で、現在の未引用 " + (explained + Math.max(missing, 0)) + " 件はこれを大きく超えています。" +
                 "章の割当（PLANコメント）に戻り、割り当てたClaimを全件本文で使ってください。" +
-                "欠けている主張IDは「確認済み件数（rr:confirmed-count）と本文の主張ID数が一致している」の行に全件挙げてあります。";
+                (plan13.present && plan13.count === total
+                  ? "欠けている主張IDは「確認済み件数（rr:confirmed-count）と本文の主張ID数が一致している」の行に全件挙げてあります。"
+                  : "PART 1にPLANコメントが無い（または割当件数が確認済み件数と合っていない）ため、欠けているIDの列挙は出せません。この会話の確認済みID一覧と本文で引用したIDを突き合わせてください。");
             } else {
               d13 = "未引用の確認済み主張を本文へ組み込むか（推奨）、5%以内に収まる範囲でUNCITED行に理由（集約／重要度低／scope外）を追記して、該当PARTを出し直してください。";
             }
@@ -937,7 +962,10 @@
   /* head内で許可されない部品。ビューアが挿入する<style>とJSON-LD<script>だけを除く。
      R3（autoRepair）とhead側の許可外チェックの両方がこの定数を共有する（片方だけ
      禁じても、もう一方が直せない赤を残してしまうため） */
-  var HEAD_FORBIDDEN_SEL = 'base, link, noscript, template, script:not([type="application/ld+json"]), meta[http-equiv]';
+  /* meta[http-equiv="Content-Type"]は除外する。refresh・CSP上書き等の悪用経路とは違い、
+     文字コード宣言はダウンロードしたHTMLをfile://で開いたときの文字化け防止に必要で、
+     ここしか宣言場所が無いことがある（meta charsetを別途持たない旧テンプレ等） */
+  var HEAD_FORBIDDEN_SEL = 'base, link, noscript, template, script:not([type="application/ld+json"]), meta[http-equiv]:not([http-equiv="Content-Type" i])';
 
   /* <style> が無ければ </head> の直前にCSSを挿入する（文字列操作。DOM再直列化はしない） */
   function ensureStyle(html, css) {
@@ -966,14 +994,25 @@
        参考文献 R|1-7|gv|書誌テキスト|URL      → <li id="ref-1-7" data-source-type="gv"><a …>…</a></li>
      従来のフルHTML記法で書かれた文書には該当パターンが無いため素通しになる（後方互換） */
   var RE_COMPACT_CITE = /\[\[([^\[\]\n]{1,400})\]\]/g;
-  var RE_COMPACT_REF = /^[ \t]*R\|(.+)$/gm;
+  var RE_COMPACT_REF = /^[ \t　]*R\|(.+)$/gm;
   var RE_MASK_REGION = /<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<!--[\s\S]*?-->/gi;
+  /* タグの中身（属性値を含む）だけを追加でマスクする版。[[…]] や R|… が正当に現れる
+     のは要素の本文（>と<の間）だけで、タグの内側（<…>）に来るのは
+     title="[[1|C-1]]" のような貼り付け事故だけ。マスクしないと展開結果が属性値の
+     中に生HTMLとして混入しタグごと壊れる（"を閉じてしまう）。
+     ※付録A範囲の検出（reApx）は<section>タグ自体を探すため、この版は使わず
+     従来のmaskRegionsを使う——両者を混同すると付録Aが二度と見つからなくなる */
+  var RE_TAG_ONLY = /<[^>]*>/g;
 
   /* script/style/HTMLコメントの中身を同じ長さの改行で埋め、圧縮記法の正規表現が
      JSON-LDやコメント内の [[…]]・R|行を誤って展開しないようにする。改行埋めなのは
      両正規表現とも \n をまたげないため、原文とマスク後文字列でオフセットが必ず一致する */
   function maskRegions(s) {
     return s.replace(RE_MASK_REGION, function (m) { return new Array(m.length + 1).join("\n"); });
+  }
+  /* maskRegions に加えてタグの中身も潰す（付録A検出には使わない。上のRE_TAG_ONLY参照） */
+  function maskRegionsAndTags(s) {
+    return maskRegions(s).replace(RE_TAG_ONLY, function (m) { return new Array(m.length + 1).join("\n"); });
   }
   /* マスク済み文字列上でreを実行し、マッチ範囲だけ原文から切り出してfnへ渡す
      （置換結果はマスクではなく原文の内容から作る） */
@@ -991,7 +1030,7 @@
     var s = String(html || "");
     var out = { html: s, cites: 0, refs: 0, changed: false };
 
-    s = replaceUnmasked(s, maskRegions(s), RE_COMPACT_CITE, function (all, inner) {
+    s = replaceUnmasked(s, maskRegionsAndTags(s), RE_COMPACT_CITE, function (all, inner) {
       var items = inner.split(";");
       var as = [], left = [];
       for (var i = 0; i < items.length; i++) {
@@ -1023,17 +1062,30 @@
       return false;
     }
 
-    s = replaceUnmasked(s, maskedForApx, RE_COMPACT_REF, function (all, rest, offset) {
+    /* R|行はタグ内マスクを使わない（意図的）。RE_COMPACT_REFは行単位（^…$）のため、
+       書誌テキストに正当に含まれる生の <山括弧> をタグとしてマスクすると、その中に
+       挿入される改行で行そのものが分断され、R|行の展開自体が失敗する。
+       （R|行がタグの属性値の中に来ることは実務上まず無いため、この経路には
+       maskRegionsAndTagsを適用しない） */
+    s = replaceUnmasked(s, maskRegions(s), RE_COMPACT_REF, function (all, rest, offset) {
       var f = rest.split("|");
-      /* R|id|type|書誌テキスト|URL。書誌テキストに | が入っても最後の欄をURLとして扱う */
+      /* R|id|type|書誌テキスト|URL。書誌テキストに | が入っても最後の欄をURLとして扱う
+         ……のが原則だが、URL自身（クエリ文字列等）に生の | が入っていると最後の欄が
+         URLの断片だけになり展開に失敗する。末尾から https?:// で始まる欄を探し、
+         そこから最後までを | でつなぎ戻してURLとする（＝URLの内部に | があっても
+         正しく1本のURLとして復元できる） */
       if (f.length < 4) return all;
-      var url = f[f.length - 1].trim();
-      if (!/^https?:\/\//i.test(url)) return all;
+      var urlStart = -1;
+      for (var fi = f.length - 1; fi >= 2; fi--) {
+        if (/^https?:\/\//i.test(f[fi].trim())) { urlStart = fi; break; }
+      }
+      if (urlStart < 0) return all;
+      var url = f.slice(urlStart).join("|").trim();
       var rid = (f[0] || "").trim();
       if (!/^[0-9A-Za-z][0-9A-Za-z-]*$/.test(rid)) return all;
       rid = canonId(rid);
       var type = (f[1] || "").trim();
-      var text = f.slice(2, f.length - 1).join("|").trim();
+      var text = f.slice(2, urlStart).join("|").trim();
       out.refs++;
       var idAttr = inAppendix(offset) ? "" : ' id="ref-' + rid + '"';
       /* R|行は素のテキスト（KIT §5.2）。題名の & < > " やURLのクエリをそのまま連結すると
@@ -1102,8 +1154,17 @@
       if (!firstOf[key]) { firstOf[key] = id; return; }
       out.merged.push({ from: id, to: firstOf[key] });
     });
+    /* li.id は任意の貼り付けHTMLから来ることがあり、"（二重引用符）等を含むと
+       文字列連結で組んだセレクタが壊れ querySelectorAll が SyntaxError を投げて
+       修復処理全体が無言で落ちる。CSS.escape（無ければ簡易フォールバック）で
+       安全なセレクタにしてから使う */
+    var cssEscapeAttr = function (s) {
+      s = String(s);
+      if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
+      return s.replace(/["\\]/g, "\\$&");
+    };
     out.merged.forEach(function (m) {
-      Array.prototype.forEach.call(doc.querySelectorAll('a[href="#ref-' + m.from + '"]'), function (a) {
+      Array.prototype.forEach.call(doc.querySelectorAll('a[href="#ref-' + cssEscapeAttr(m.from) + '"]'), function (a) {
         a.setAttribute("href", "#ref-" + m.to);
         var t = (a.textContent || "").trim();
         if (/^\[[^\]]*\]$/.test(t) || t === m.from) a.textContent = "[" + m.to + "]";
@@ -1621,35 +1682,50 @@
       /* PART 1のPLANコメントから「本文に載るはずのID全体」を復元する。実走で、欠落25件を
          件数だけ伝えたところ、AIは全6PARTを出し直しても同じ25件を落としたままだった
          （どのIDが欠けているか知りようがない）。以降はIDを実名で返す。
-         列挙は打ち切らない——12件だけ挙げれば12件だけ直る、を再生産するため */
+         列挙は打ち切らない——12件だけ挙げれば12件だけ直る、を再生産するため。
+         PLANの割当自体が確認済み件数と一致していない（plan17.count !== total）ときは
+         「PLANの外＝超過」の判定が信用できない（正当な主張をPLAN不足のせいで
+         「削れ」と指示してしまう事故になる）ため、その場合は超過IDの個別列挙をせず
+         17bの割当修正へ誘導する */
       var plan17 = parsePlan(html);
+      var planTrustworthy = plan17.present && plan17.count && plan17.count === total;
       if (!okc && union > total) {
         var over;
-        if (plan17.present && plan17.count) {
+        if (planTrustworthy) {
           over = sortIds(Object.keys(ids).filter(function (id) { return !plan17.all[id]; }));
         } else {
-          /* PLANが無い旧レポート向けの推定。/^C-(\d+)$/ はlite形式（C-12）専用で、
-             フル版の C-2-7 では常に -1 になり何も挙がらない */
+          /* PLANが無い・信用できない旧レポート向けの推定。/^C-(\d+)$/ はlite形式（C-12）
+             専用で、フル版の C-2-7 では常に -1 になり何も挙がらない（既知の制約） */
           var numOf = function (id) { var m = String(id).match(/^C-(\d+)$/); return m ? parseInt(m[1], 10) : -1; };
           over = Object.keys(ids).filter(function (id) { return numOf(id) > total; }).sort(function (a, b) { return numOf(a) - numOf(b); });
         }
         d17 = "本文またはUNCITED行に、確認済みでないClaim IDが " + (union - total) + " 件混ざっています。" +
-          "根拠確認（SCRIPT V）を通ったのは C-1〜C-" + total + " です。" +
-          (over.length ? "確認済みの範囲を超えているID: " + over.join(", ") + "。" : "") +
-          "次のどちらかで直してください: (1) これらのIDを引いている文とUNCITED行の記載を削る（対応する主張は本文から外す）、" +
-          "または (2) それらが本当に確認済みなら head の rr:confirmed-count を実際の件数へ直す。" +
-          "該当PARTと最終PARTを丸ごと出し直してください。";
+          (plan17.present && plan17.count && !planTrustworthy
+            ? "PLANの割当件数（" + plan17.count + "件）が確認済み件数（" + total + "件）と合っていないため、超過IDを個別には特定できません。" +
+              "まずこの下の「PLANコメントに確認済み主張が過不足なく割り当てられている」を直してください。"
+            : (over.length ? "確認済みの範囲を超えているID: " + over.join(", ") + "。" : "") +
+              "次のどちらかで直してください: (1) これらのIDを引いている文とUNCITED行の記載を削る（対応する主張は本文から外す）、" +
+              "または (2) それらが本当に確認済みなら head の rr:confirmed-count を実際の件数へ直す。" +
+              "該当PARTと最終PARTを丸ごと出し直してください。");
       } else if (!okc) {
-        d17 = (total - union) + " 件の主張が本文にもUNCITEDにも現れていません。" +
-          "未記載の主張を本文に組み込んで引用するか、UNCITED行へ理由付きで加えて、該当PARTを出し直してください。";
-        if (plan17.present && plan17.count) {
+        if (planTrustworthy) {
           missingIds = sortIds(Object.keys(plan17.all).filter(function (id) { return !ids[id]; }));
-          if (missingIds.length) {
-            d17 += "欠けている主張ID（全 " + missingIds.length + " 件）: " + missingIds.join(", ") +
-              "。これらをPLANコメントで割り当てた章の本文に書き入れ、その文に [[資料ID|C-ID]] を付けてください" +
-              "（列挙は省略していません。1件残らず組み込むか、5%以内ならUNCITED行へ理由付きで加えてください）。";
-          }
-        } else {
+        }
+        /* missingIdsが取れる（PLANが信用できる）場合は、その件数を主文にも使う。
+           total-union は「超過が同時に混ざっている」場合に過小な値になりうる
+           （例: 1件欠落＋1件混入で差引ゼロに見えてしまう）ため、PLANという
+           実データが取れているときはそちらを優先する */
+        var shortfall = (planTrustworthy && missingIds.length) ? missingIds.length : (total - union);
+        d17 = shortfall + " 件の主張が本文にもUNCITEDにも現れていません。" +
+          "未記載の主張を本文に組み込んで引用するか、UNCITED行へ理由付きで加えて、該当PARTを出し直してください。";
+        if (missingIds.length) {
+          d17 += "欠けている主張ID（全 " + missingIds.length + " 件）: " + missingIds.join(", ") +
+            "。これらをPLANコメントで割り当てた章の本文に書き入れ、その文に [[資料ID|C-ID]] を付けてください" +
+            "（列挙は省略していません。1件残らず組み込むか、5%以内ならUNCITED行へ理由付きで加えてください）。";
+        } else if (plan17.present && plan17.count && !planTrustworthy) {
+          d17 += "PLANの割当件数が確認済み件数と合っていないため、欠けているIDを個別には特定できません。" +
+            "まずこの下の「PLANコメントに確認済み主張が過不足なく割り当てられている」を直してください。";
+        } else if (!plan17.present || !plan17.count) {
           d17 += "PART 1のPLANコメントが読み取れないため、欠けているIDをこちらでは特定できません。" +
             "この会話の確認済みID一覧（監査メモのLOCK行／SCRIPT Vの結果）と、本文で引用したID＋UNCITED行のIDを突き合わせ、" +
             "欠けているIDを列挙してから直してください。";
@@ -1679,7 +1755,8 @@
               (plan17.count < total ? "（" + (total - plan17.count) + " 件が どの章にも割り当てられていません）" : ""));
           }
           if (plan17.dup.length) {
-            planIssues.push("複数の章に重複して割り当てられたID: " + sortIds(plan17.dup).join(", "));
+            planIssues.push("複数の章に重複して割り当てられたID: " +
+              sortIds(plan17.dup).map(function (id) { return plan17.raw[id] || id; }).join(", "));
           }
         }
         var planOk = planIssues.length === 0;

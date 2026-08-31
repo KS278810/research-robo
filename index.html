@@ -20,13 +20,19 @@
 <meta name="twitter:description" content="調べたいことを書くだけ。出典で裏づけられたベンチマーク調査レポートに変える無料のプロンプトキット。">
 <meta name="twitter:image" content="https://ks278810.github.io/research-robo/assets/images/ogp.png">
 
-<!-- Google Analytics (GA4) — このLPのアクセス解析専用。プロンプトコピーの内容・貼り付けたレポート等（viewer.html/dispatch.html）はここには含まれず、それらのページにはこのスクリプトを入れない -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-298Y5GR72W"></script>
+<!-- Google Analytics (GA4) — このLPのアクセス解析専用。プロンプトコピーの内容・貼り付けたレポート等（viewer.html/dispatch.html）はここには含まれず、それらのページにはこのスクリプトを入れない。
+     本番ホスト名のときだけ発火（ローカル配信・ステージングでの閲覧が本番の計測を汚染しないように） -->
 <script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', 'G-298Y5GR72W');
+if (location.hostname === 'ks278810.github.io') {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function(){dataLayer.push(arguments);};
+  gtag('js', new Date());
+  gtag('config', 'G-298Y5GR72W');
+  var gaScript = document.createElement('script');
+  gaScript.async = true;
+  gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-298Y5GR72W';
+  document.head.appendChild(gaScript);
+}
 </script>
 
 <meta name="theme-color" content="#0F2A43">

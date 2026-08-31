@@ -1475,11 +1475,17 @@ p { margin: 0; }
     if (kitTextPromise[file]) return kitTextPromise[file];
     var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, KIT_FETCH_TIMEOUT) : 0;
-    kitTextPromise[file] = withTimeout(fetch(file, ctrl ? { signal: ctrl.signal } : undefined), KIT_FETCH_TIMEOUT).then(function (r) {
+    /* withTimeoutはfetch()自体だけでなく r.text()（本文の読み込み）まで含めて
+       包む。ヘッダーは届いたのに本文ストリームが止まった回線では、fetch()の
+       Promiseはすでに解決済みなのでAbortControllerのabort()は本文読み込みを
+       止めてくれない——r.text()を外に出すと無期限にハングし、コピーボタンが
+       （ロック中の他ボタンも道連れで）永久に「準備中…」のまま戻らなくなる */
+    var chain = fetch(file, ctrl ? { signal: ctrl.signal } : undefined).then(function (r) {
       clearTimeout(timer);
       if (!r.ok) throw new Error('fetch failed: ' + r.status);
       return r.text();
-    }).then(function (t) {
+    });
+    kitTextPromise[file] = withTimeout(chain, KIT_FETCH_TIMEOUT).then(function (t) {
       kitTextCache[file] = t;
       return t;
     }).catch(function (e) {

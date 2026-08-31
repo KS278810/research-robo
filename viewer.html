@@ -521,7 +521,11 @@ footer.site-footer a { color: var(--color-mute); }
       missingByPart = map;
     })();
     var target;
-    if (n > 1 && missingByPart) {
+    /* missingByPartはUNCITED系（check17等）の情報だけから組み立てているため、
+       それ以外の族の赤（禁止語検出など）が同時に混ざっていると、そちらのPARTを
+       名指しし忘れて「他のPARTはそのままで」と言いながら不備を見落とす。
+       赤が全てUNCITED系（allUncited）のときだけ、この精密な絞り込みを使う */
+    if (n > 1 && missingByPart && allUncited) {
       var pks = Object.keys(missingByPart).map(Number).sort(function (a, b) { return a - b; });
       var withFinal = pks.slice();
       if (withFinal.indexOf(n) < 0) withFinal.push(n);
@@ -592,11 +596,23 @@ footer.site-footer a { color: var(--color-mute); }
       var obj = JSON.parse(raw);
       if (!(obj && obj.parts && typeof obj.parts === "object")) return false;
       var n = parseInt(obj.n, 10);
+      n = (n > 0 && n <= RR.MAX_PARTS) ? n : 0;
+      /* obj.parts はセッションストレージ由来で、旧バージョンや破損データが混ざりうる。
+         キーが1〜n範囲の整数でなく、値が {body: string, ...} の形でなければ
+         その枠は捨てる（assembleParts等がbodyを文字列として扱う前提を守る） */
+      var cleanParts = {};
+      Object.keys(obj.parts || {}).forEach(function (k) {
+        var kn = parseInt(k, 10);
+        var v = obj.parts[k];
+        if (kn >= 1 && kn <= n && v && typeof v === "object" && typeof v.body === "string") {
+          cleanParts[kn] = v;
+        }
+      });
       partStore = {
-        n: (n > 0 && n <= RR.MAX_PARTS) ? n : 0,
+        n: n,
         rid: typeof obj.rid === "string" ? obj.rid : "",
         title: typeof obj.title === "string" ? obj.title : "",
-        parts: obj.parts,
+        parts: cleanParts,
         reset: (obj.reset && typeof obj.reset === "object") ? obj.reset : null
       };
       return true;
@@ -731,6 +747,10 @@ footer.site-footer a { color: var(--color-mute); }
         ? "別のレポートのPARTが届きました。前のレポート（" + title40 + "）のPART " + plan.dropped.join(", ") + " は破棄しました"
         : "別のレポートのPARTが届きました。前のレポートのPART " + plan.dropped.join(", ") + " は破棄しました");
     } else if (plan.mode === "newCount") {
+      /* 総数が変わった＝AIが分割をやり直した合図。出し直し回数もここでリセットする
+         （リセットしないと、新しい分割の1回目の修正がいきなり「これが最後です」に
+         なってしまう） */
+      fixRounds = 0;
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
       if (plan.dropped.length) {
         notices.push("PARTの総数が食い違っています（これまで " + plan.prevN + "、今回 " + plan.n +
@@ -794,11 +814,13 @@ footer.site-footer a { color: var(--color-mute); }
   }
 
   /* PARTマーカーが無い入力を「完成レポート」として処理してよいか。
-     マーカーもレポートらしい構造（</html>・参考文献・見出し）も無ければ、
-     スマホの選択ミス等で切れた断片の可能性が高いので、レポートとして扱わない */
+     </html>が無ければ完成文書ではありえない（必須条件）。<h1>や参考文献の見出しだけを
+     根拠にすると、AIの応答からたまたま<h1>まとめ</h1>のような断片だけをコピーした
+     ケースまで「完成レポート」と誤判定し、収集済みPARTを無警告で全部消してしまう
+     （実走で確認された事故——貼り付け欄も空にならず、直前の状態に戻す手段が無かった） */
   function looksLikeCompleteReport(html) {
     var s = String(html || "");
-    return /<\/html>/i.test(s) || /<h1[\s>]/i.test(s) || /class="references"|id="references"/i.test(s);
+    return /<\/html>/i.test(s);
   }
 
   function intake(raw) {
@@ -809,9 +831,15 @@ footer.site-footer a { color: var(--color-mute); }
          レガシー完成HTMLとして処理する（旧テンプレ・軽量な入力の検証用途を壊さない） */
       if (partStore.n && !looksLikeCompleteReport(res.norm.html)) {
         var stFrag = RR.partStatus(partStore);
-        renderPartStatus(stFrag, [], [], ["レポートの一部のようです。PART 1 から順に貼り付けてください"]);
+        renderPartStatus(stFrag, [], [], ["レポートの一部のようです。正しいPARTを貼り直してください（受け取り済みのPARTは消えていません）"]);
         resultsBox.classList.remove("is-visible");
         previewPanel.classList.remove("is-visible");
+        /* 他の取り込み経路は全て貼り付け欄を空にして終わる。ここだけ空にしないと、
+           次に正しいPARTを貼ったときにこの断片と連結されてしまい、キャレット位置
+           次第ではRR-PARTマーカーが分断されてレガシー扱い（＝収集の巻き戻し）を
+           誘発しうる */
+        input.value = "";
+        syncCheckBtn();
         return { legacy: true, complete: false, fragment: true };
       }
       /* 前回の受領途中だったPARTの表示（「未受領: 2, 3」等）が、完結した従来形式（マーカー
@@ -917,7 +945,7 @@ footer.site-footer a { color: var(--color-mute); }
   clearBtn.addEventListener("click", function () {
     input.value = "";
     currentHtml = "";
-    partStore = { n: 0, rid: "", title: "", parts: {} };
+    partStore = { n: 0, rid: "", title: "", parts: {}, reset: null };
     persistStore();
     lastResults = [];
     fixRounds = 0;
@@ -965,8 +993,9 @@ footer.site-footer a { color: var(--color-mute); }
     RR.downloadHtml(html);
   });
 
-  function copyText(text, btn, okLabel) {
+  function copyText(text, btn, okLabel, onSuccess) {
     var done = function () {
+      if (onSuccess) onSuccess();
       if (!btn) return;
       var orig = btn.getAttribute("data-label") || btn.textContent;
       btn.setAttribute("data-label", orig);
@@ -988,8 +1017,13 @@ footer.site-footer a { color: var(--color-mute); }
     copyIssuesBtn.addEventListener("click", function () {
       var t = issueText(lastResults);
       if (!t) { window.alert("不備はありません。"); return; }
-      fixRounds += 1;
-      copyText(t, copyIssuesBtn, "コピーしました（AIチャットへ貼り付け）");
+      /* コピーが実際に成功したときだけ回数を進める。失敗（クリップボード拒否・
+         フォールバックの手動コピーが必要なケース）まで数えると、直してもいない
+         ユーザーに「最後の出し直しです」と誤って伝えてしまう */
+      copyText(t, copyIssuesBtn, "コピーしました（AIチャットへ貼り付け）", function () {
+        fixRounds += 1;
+        updateStatusUI();
+      });
     });
   }
 

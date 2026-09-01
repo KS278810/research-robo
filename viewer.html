@@ -444,11 +444,45 @@ footer.site-footer a { color: var(--color-mute); }
     var lines = acts.map(function (r) {
       return "RR-CHECK: " + oneLine(r.label) + ": " + oneLine(r.detail);
     });
-    if (!lines.length) return "";
     /* 実走: 「該当するPART」とだけ伝えたため、AIが推測で1つのPARTだけを出し直し、
        原因が別PARTにあって不備が消えなかった。検査は結合後の全文に対して行うので、
        どのPARTを直せばよいかはAIには分からない。全PARTの出し直しを既定にする */
     var n = partStore.n || 0;
+    /* 重複章（check 18）はlocal:trueなのでactsには入らず、既定では「クリア」して
+       貼り直すよう案内するしかない。だが実走で、貼り直しでは直らない原因
+       （AI自身が後のPARTで同じ章・枠を再出力した）が繰り返し起きた。
+       dupSelectorsが付いた行から、重複が実際にまたがっているPARTを生本文
+       走査で特定できた場合だけ、AI向けの出し直し文を合成する。特定できない
+       （同一PART内での重複・情報不足）場合は何もしない——从来どおり
+       「クリア」案内に任せる（誤った推測でPARTを名指ししない） */
+    var dupText = "";
+    (function () {
+      var dupRows = (results || []).filter(function (r) { return !r.ok && (r.dupSelectors || []).length; });
+      if (!dupRows.length || n <= 1) return;
+      var sels = [];
+      dupRows.forEach(function (r) { r.dupSelectors.forEach(function (s) { if (sels.indexOf(s) < 0) sels.push(s); }); });
+      var byPart = {};
+      var resolvedAny = false;
+      sels.forEach(function (sel) {
+        var needle = sel.charAt(0) === "#" ? 'id="' + sel.slice(1) + '"'
+          : sel.charAt(0) === "." ? 'class="' + sel.slice(1)
+          : 'id="' + sel + '"';
+        var hitKs = Object.keys(partStore.parts).map(Number).filter(function (k) {
+          return String((partStore.parts[k] || {}).body || "").indexOf(needle) >= 0;
+        }).sort(function (a, b) { return a - b; });
+        if (hitKs.length < 2) return;
+        resolvedAny = true;
+        /* 最初に現れたPARTを原本とみなし、それ以降を重複の出所として名指しする */
+        hitKs.slice(1).forEach(function (k) { (byPart[k] = byPart[k] || []).push(sel); });
+      });
+      if (!resolvedAny || !Object.keys(byPart).length) return;
+      var dks = Object.keys(byPart).map(Number).sort(function (a, b) { return a - b; });
+      dupText = "PART " + dks.map(function (k) { return k + "/" + n; }).join("、") +
+        " に、他のPARTと重複する部分（" + dks.map(function (k) { return byPart[k].join("・"); }).join("／") +
+        "）が含まれています。重複部分を含めず、該当PARTだけを重複の無い内容で出し直してください" +
+        "（他のPARTはそのまま。ビューアは貼り直したPARTだけを差し替えます）。";
+    })();
+    if (!lines.length) return dupText;
     /* 不備の文面から原因のPARTを特定できる場合（検出された文字列がそのPARTの本文に
        含まれる）はそのPARTだけを名指しし、特定できない集計系の不備（引用率・件数など）は
        全PARTの出し直しを求める。実走で、AIが推測で1つのPARTだけ直して不備が消えなかった */
@@ -459,13 +493,39 @@ footer.site-footer a { color: var(--color-mute); }
       /* カンマ区切りの列挙（検出: img, iframe）や直結の括弧（検出: WP3（出典名なら…））を
          針に巻き込むと、生のPART本文と一致せずPART特定が常に不発だった。最初の項目だけを
          区切りの手前まで捕捉する */
-      if (!m) { identifiable = false; return; }
-      var needle = m[1];
-      var hit = Object.keys(partStore.parts).filter(function (k) {
-        return String((partStore.parts[k] || {}).body || "").indexOf(needle) >= 0;
-      });
-      if (!hit.length) { identifiable = false; return; }
-      hit.forEach(function (k) { culprits[k] = true; });
+      if (m) {
+        var needle = m[1];
+        var hit = Object.keys(partStore.parts).filter(function (k) {
+          return String((partStore.parts[k] || {}).body || "").indexOf(needle) >= 0;
+        });
+        if (!hit.length) { identifiable = false; return; }
+        hit.forEach(function (k) { culprits[k] = true; });
+        return;
+      }
+      /* 章名を「、」区切りで列挙する2つの検査（出典の無い章／キーメッセージの無い章）は
+         「検出: 」形式ではないため上のパターンに乗らず、常に全PART出し直しに落ちていた。
+         実走で、章単位の不備なのに毎回レポート全体を書き直させてしまい、その結果
+         別の章に新しい不備を生む（実走で実際に発生）。章名は生PART本文の見出しに
+         そのまま出るので、同じ要領でPARTを特定する。1章でも見つからなければ
+         （誤った推測を避けるため）このcheckは識別不能のまま扱う */
+      var cm = String(r.detail || "").match(/(?:引用番号が1件も無い章|見出しの直後が \.key-message でない章): ([^（]+)/);
+      if (cm) {
+        var chapters = cm[1].split("、").map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!chapters.length) { identifiable = false; return; }
+        var allFound = true;
+        var hits2 = [];
+        chapters.forEach(function (ch) {
+          var hit2 = Object.keys(partStore.parts).filter(function (k) {
+            return String((partStore.parts[k] || {}).body || "").indexOf(ch) >= 0;
+          });
+          if (!hit2.length) { allFound = false; return; }
+          hits2 = hits2.concat(hit2);
+        });
+        if (!allFound) { identifiable = false; return; }
+        hits2.forEach(function (k) { culprits[k] = true; });
+        return;
+      }
+      identifiable = false;
     });
     var ks = Object.keys(culprits).sort(function (a, b) { return a - b; });
     /* UNCITED系（引用カバー率・件数一致・UNCITED割合）は検出文字列を持たないため従来は
@@ -550,10 +610,16 @@ footer.site-footer a { color: var(--color-mute); }
     /* 出し直しは1回まで（ユーザー方針）。2回目の文面には「これが最後」と明示し、
        残った不備は残したままでよいと伝える。AI側が延々と直そうとして
        重い再出力を繰り返すのを止める */
-    var lastRound = fixRounds >= 1 ? "（これが最後の出し直しです。1回で直せなかった項目は、直せない理由を1行ずつ挙げるだけでよく、そのまま残して構いません）" : "";
+    /* 実走: fixRounds>=1の間ずっと「これが最後」を出し続けたため、3回連続で
+       「最後」と言われる状態になっていた。「最後」は1回目の出し直しにだけ使い、
+       2回目以降は回数を正直に伝える文面に変える */
+    var lastRound = fixRounds === 1 ? "（これが最後の出し直しです。1回で直せなかった項目は、直せない理由を1行ずつ挙げるだけでよく、そのまま残して構いません）"
+      : fixRounds >= 2 ? "（出し直しは既に" + fixRounds + "回行っています。残った項目は直せない理由を1行ずつ挙げるだけでよく、そのまま残して構いません）"
+      : "";
     return lastRound + "以下のRR-CHECKの不備をすべて一度に修正し、" + target +
       "出し直す前にKITの執筆側チェック（出力前の自己チェック）を再実行し、指摘箇所以外の文・引用・構成は変えないでください。" +
-      "PART本文の再貼り付けは不要です（この会話の結果一覧と骨格から書き直してください）。出し直しは必ずPART全体で、断片は取り込まれません。\n" +
+      "PART本文の再貼り付けは不要です（この会話の結果一覧と骨格から書き直してください）。出し直しは必ずPART全体で、断片は取り込まれません。" +
+      (dupText ? "\n" + dupText : "") + "\n" +
       lines.join("\n");
   }
 
@@ -692,9 +758,16 @@ footer.site-footer a { color: var(--color-mute); }
           if (fixRounds >= 2) {
             guidance += "。同じ不備が" + fixRounds + "回続く場合、多くはPARTの混在が原因です。「クリア」を押してから全PARTを貼り直すと解消することがあります";
           }
+        } else if (issueText(lastResults)) {
+          /* local:trueの赤（重複章等）しかないが、issueTextがPARTを特定できたため
+             AI向けの出し直し文を合成できている。この場合は「クリア」ではなく
+             「不備をコピー」を案内する（クリアして貼り直しても、原因がAI自身の
+             重複出力なら再発するだけで直らない） */
+          statusTitle.textContent = "×の項目があります → 「不備をコピー」を押してAIチャットに貼り付けてください";
+          guidance = "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）";
         } else {
-          /* local:true の赤しかない場合。AIに送っても直せないので「不備をコピー」は
-             案内せず、貼り直しだけを促す（「クリアせずそのまま貼る」は誤り） */
+          /* local:true の赤しかなく、PARTも特定できない場合。AIに送っても直せないので
+             「不備をコピー」は案内せず、貼り直しだけを促す（「クリアせずそのまま貼る」は誤り） */
           statusTitle.textContent = "×の項目があります → 「クリア」を押してから全PARTを貼り直してください";
         }
       } else if (state === "done") {

@@ -32,7 +32,10 @@
       local: !!extra.local,
       /* 欠落した主張ID（check 17）。ビューアが「どのPARTを出し直すか」を
          PLANコメントから逆引きするために使う。RR-CHECK行の文面には影響しない */
-      missingIds: extra.missingIds || []
+      missingIds: extra.missingIds || [],
+      /* 重複している部分のセレクタ/id（check 18）。ビューアが「どのPARTに
+         重複の後発分があるか」を生PART本文から逆引きするために使う */
+      dupSelectors: extra.dupSelectors || []
     });
   }
 
@@ -530,11 +533,23 @@
         if (PRIMARY_TYPES.indexOf((li.getAttribute("data-source-type") || "").trim().toLowerCase()) !== -1) primaryCount++;
       });
       var refOk = refs.length >= 3 && primaryCount >= 1;
+      /* 一次資料0件（種類は付与済み・件数は足りる）は、レポートの出し直しでは直せない
+         ——SCRIPT Lは整形段階で、新しい資料を調査で足す段階ではない。実走で、この赤を
+         AIに送った結果、次のラウンドで二次資料の data-source-type を書き換えて赤を消す
+         （＝記録の改竄）方向へ誘導しかけた。一次資料が無いのは調査の記録であって
+         レポートの不備ではないため、黄色（warn。AIに送らない）で知らせるだけにする。
+         refs<3 は従来どおり赤（参考文献セクションの出し忘れ等、整形段階で直せる欠陥が主因） */
+      var fewRefs = refs.length < 3;
       addResult(results, refOk, "参考文献が3件以上あり、一次資料が含まれている",
         "参考文献 " + refs.length + " 件・一次資料 " + primaryCount + " 件" +
-        (refOk ? "" : "（3件以上かつ一次資料1件以上が必要です。プレスリリース・公式サイト・IR資料・官公庁・論文・特許のいずれかを含めてください）"),
-        { title: refOk ? "参考文献の件数と一次資料の条件を満たしています"
-                       : "参考文献が足りないか、一次資料（公式発表・官公庁資料など）が入っていません（参考文献 " + refs.length + " 件・一次資料 " + primaryCount + " 件）" });
+        (refOk ? "" : fewRefs
+          ? "（3件以上かつ一次資料1件以上が必要です。プレスリリース・公式サイト・IR資料・官公庁・論文・特許のいずれかを含めてください）"
+          : "。一次資料（プレスリリース・公式サイト・IR資料・官公庁・論文・特許）が見つかりませんでした。調査で一次資料に当たらなかった場合はそのままで構いません。実際の資料種類と異なる data-source-type に書き換えて合格させないでください（それは記録不備です）"),
+        { kind: refOk ? "ok" : (fewRefs ? "action" : "warn"),
+          title: refOk ? "参考文献の件数と一次資料の条件を満たしています"
+               : fewRefs ? "参考文献が足りません（参考文献 " + refs.length + " 件・一次資料 " + primaryCount + " 件）"
+               : "一次資料（公式発表・官公庁資料など）が入っていません。そのままでも完成できます（参考文献 " + refs.length + " 件）",
+          next: refOk ? "" : fewRefs ? "AIに「不備をコピー」の文面を送る" : "" });
     }
 
     // 8. 参考文献URLの重複
@@ -1103,9 +1118,45 @@
      renumberRefs より前に実行する（参考文献の増減が採番に影響するため） */
   function autoRepair(html) {
     var s = String(html || "");
-    var out = { html: s, changed: false, merged: [], moved: [], moveSkipped: "", removedTags: [], strippedAttrs: 0, unwrapped: 0, structureMoved: [] };
+    var out = { html: s, changed: false, merged: [], moved: [], moveSkipped: "", removedTags: [], strippedAttrs: 0, unwrapped: 0, structureMoved: [], dedup: [] };
     var doc = parseDoc(s);
     if (!doc || !doc.body) return out;
+
+    /* R6. 重複した骨格・章の統合（R0より前に実行する。R0は .body-columns が1つである
+       前提で動くため）。実走で、無料版ChatGPTが後のPARTで本文の枠 <div class="body-columns">
+       やスケルトンごと出し直し、結合後に枠が2重になる事例が繰り返し起きた。貼り直しでは
+       直らない（AI自身の出力が重複している）ので、内容を失わない範囲だけ機械で直す。
+         (a) .body-columns が複数 → 2つ目以降の中身を1つ目の末尾へ移し、空の枠を削除する
+         (b) 同一idのsection・8ランドマークが複数で、テキストが完全一致 → 後の方を削除する
+       内容が異なる重複は消さない（改稿版の可能性がある）。それは check 18 が赤で知らせ、
+       viewer側がAI向けの出し直し文を作る */
+    var normText = function (el) { return String((el.textContent || "")).replace(/\s+/g, " ").trim(); };
+    var bcAll = Array.prototype.slice.call(doc.querySelectorAll(".body-columns"));
+    if (bcAll.length > 1) {
+      var keepBc = bcAll[0];
+      bcAll.slice(1).forEach(function (extra) {
+        while (extra.firstChild) keepBc.appendChild(extra.firstChild);
+        if (extra.parentNode) extra.parentNode.removeChild(extra);
+      });
+      out.dedup.push({ kind: "body-columns", count: bcAll.length - 1 });
+    }
+    var DEDUP_SEL = [".cover", "#sec-exec", "#sec-method", "#references", "#apx-a", "#apx-b", ".disclaimer"];
+    DEDUP_SEL.forEach(function (sel) {
+      var els = Array.prototype.slice.call(doc.querySelectorAll(sel));
+      if (els.length < 2) return;
+      var base = normText(els[0]);
+      els.slice(1).forEach(function (el) {
+        if (normText(el) !== base) return; /* 内容が違うなら消さない（check 18へ委ねる） */
+        if (el.parentNode) { el.parentNode.removeChild(el); out.dedup.push({ kind: sel, count: 1 }); }
+      });
+    });
+    var secById = {};
+    Array.prototype.forEach.call(doc.querySelectorAll('section[id^="sec-"]'), function (sec) {
+      var id = sec.getAttribute("id") || "";
+      if (!secById[id]) { secById[id] = sec; return; }
+      if (normText(sec) !== normText(secById[id])) return; /* 内容が違うなら消さない */
+      if (sec.parentNode) { sec.parentNode.removeChild(sec); out.dedup.push({ kind: id, count: 1 }); }
+    });
 
     /* R0. 調査手法・参考文献・付録・免責が <div class="body-columns"> の内側にある場合、
        外（直後）へ出す。2段組・章の自動採番・改ページ・本文分量の判定が壊れるのを防ぐ
@@ -1286,7 +1337,7 @@
       out.unwrapped++;
     });
 
-    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.structureMoved.length || out.headingNumbers) {
+    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.structureMoved.length || out.headingNumbers || out.dedup.length) {
       var dt = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">\n" : "";
       out.html = dt + doc.documentElement.outerHTML;
       out.changed = true;
@@ -1535,6 +1586,21 @@
     }
     var rep = info.repair;
     if (rep && rep.changed) {
+      if (rep.dedup && rep.dedup.length) {
+        var bcDup = rep.dedup.filter(function (d) { return d.kind === "body-columns"; })[0];
+        var otherDup = rep.dedup.filter(function (d) { return d.kind !== "body-columns"; });
+        if (bcDup) {
+          addResult(results, true, "本文の枠が2重になっていたため1つに統合しました",
+            "<div class=\"body-columns\"> が" + (bcDup.count + 1) + "個ありました。内容を失わずに1つ目へまとめました（PARTの一部でAIが本文の枠を出し直した可能性があります）。",
+            { kind: "log", title: "本文の枠の重複をまとめました" });
+        }
+        if (otherDup.length) {
+          addResult(results, true, "同一内容の重複 " + otherDup.length + " 件を1つにしました",
+            "同じ内容の章・部分が複数回出力されていたため、後から出た方を取り除きました: " +
+            otherDup.map(function (d) { return d.kind; }).slice(0, 8).join("、"),
+            { kind: "log", title: "同じ内容の重複を取り除きました（" + otherDup.length + "件）" });
+        }
+      }
       if (rep.structureMoved && rep.structureMoved.length) {
         addResult(results, true, "参考文献・付録・免責・調査手法の章を本文2段組の外へ移しました",
           "<div class=\"body-columns\"> の内側にあった " + rep.structureMoved.slice(0, 6).join("、") +
@@ -1781,12 +1847,23 @@
     var LANDMARK_NAMES = { ".cover": "表紙", "#sec-exec": "エグゼクティブサマリー", ".body-columns": "本文",
       "#sec-method": "調査手法", "#references": "参考文献", "#apx-a": "付録A", "#apx-b": "付録B", ".disclaimer": "免責" };
     var dupSel = LANDMARKS.filter(function (sel) { return doc.querySelectorAll(sel).length > 1; });
+    /* 章（<section id="sec-N">）の重複も見る。同一内容の重複はR6（autoRepair）が
+       ここへ来る前に1つへ統合済みなので、ここに残るのは内容が異なる重複だけ
+       ——AI自身が同じ章を書き直した／別内容で再出力した可能性がある */
+    var secSeen = {};
+    Array.prototype.forEach.call(doc.querySelectorAll('section[id^="sec-"]'), function (sec) {
+      var id = sec.getAttribute("id") || "";
+      if (!id) return;
+      if (secSeen[id]) { if (dupSel.indexOf(id) < 0) dupSel.push(id); }
+      else secSeen[id] = true;
+    });
     addResult(results, dupSel.length === 0, "同じ部分が2回入っていない（表紙・調査手法・参考文献・付録・免責）",
       dupSel.length ? "2回入っている部分: " + dupSel.map(function (sel) { return LANDMARK_NAMES[sel] || sel; }).join("、") +
         "。別のレポートのPART、または分割が変わる前のPARTが混ざっている可能性があります。「クリア」してから全PARTを貼り直してください。" : "",
       { kind: dupSel.length ? "action" : "ok", local: true,
         title: dupSel.length ? "同じ章が2回入っています（PARTの取り違えの可能性）" : "同じ章の重複はありません",
-        next: dupSel.length ? "「クリア」を押して、全PARTを貼り直す" : "" });
+        next: dupSel.length ? "「クリア」を押して、全PARTを貼り直す" : "",
+        dupSelectors: dupSel });
 
     // 19. 展開されずに残った短い記法。資料IDの書式違い・URL欠落などで expandCompact が
     //     素通しにした分で、そのまま印刷すると本文に [[…]] や R| の行が出てしまう

@@ -249,7 +249,7 @@ footer.site-footer a { color: var(--color-mute); }
 
     <div class="panel">
       <h2 id="intake-heading">1. 届いたPARTを貼り付け</h2>
-      <textarea id="input-html" placeholder="ここに貼り付け（届いた順に1つずつ。貼るだけで取り込まれます）"></textarea>
+      <textarea id="input-html" placeholder="ここに貼り付け（届いた順に1つずつ。貼るだけで取り込まれます）&#10;調査結果の一覧（コードブロックの中身）も貼ると、付録Cに主張台帳が付きます（任意）"></textarea>
       <div class="actions">
         <button class="btn btn-primary" id="btn-check" type="button" disabled>検証してプレビュー</button>
         <button class="btn btn-outline" id="btn-clear" type="button">クリア</button>
@@ -332,6 +332,11 @@ footer.site-footer a { color: var(--color-mute); }
     return false;
   }
   var STORE_KEY = "rr_viewer_parts_v1";
+  var RL_STORE_KEY = "rr_viewer_resultlist_v1";
+  /* 貼り付けられた結果一覧（S/C/N/RECEIPT行）のブロック配列。60行分割やWP単位で
+     複数回貼っても蓄積する（レポートPARTのpartStoreとは別管理。任意機能なので
+     結果一覧が一度も貼られていなければ何も変わらない） */
+  var resultListStore = [];
 
   var input = document.getElementById("input-html");
   var checkBtn = document.getElementById("btn-check");
@@ -512,11 +517,29 @@ footer.site-footer a { color: var(--color-mute); }
       if (cm) {
         var chapters = cm[1].split("、").map(function (s) { return s.trim(); }).filter(Boolean);
         if (!chapters.length) { identifiable = false; return; }
+        /* 章名の生インデックス一致だと、目次（PART 1の<a href="#sec-N">章名</a>）や
+           PLANコメントの章名にも当たり、不備の無いPART 1まで名指ししてしまう
+           （実走で確認: 考察章1件の不備がPART 1と該当PARTの2本出し直しになった）。
+           章名は<h2>見出し</h2>の中身としてのみ本来出現するので、そこに限定する */
+        /* 完全一致だと、AIが手打ちの章番号（autoRepair R5が剥がす前の生PART本文の
+           「2. 章題」等）やトークン置換前の生の見出しを書いた場合に一致せず、
+           「識別不能→全PART出し直し」へ逆戻りする（実走ではないが監査で発見。
+           R5が章番号を剥がすのはビューアの表示時点であり、生PART本文には
+           番号が残っている）。包含一致にして、番号や記号が前後に付いていても
+           拾えるようにする（目次へのh2限定は維持しているので誤爆のリスクは低い） */
+        var partHasHeading = function (body, ch) {
+          var re = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, m2;
+          while ((m2 = re.exec(body))) {
+            var inner = m2[1].replace(/<[^>]+>/g, "").trim();
+            if (inner === ch || inner.indexOf(ch) >= 0) return true;
+          }
+          return false;
+        };
         var allFound = true;
         var hits2 = [];
         chapters.forEach(function (ch) {
           var hit2 = Object.keys(partStore.parts).filter(function (k) {
-            return String((partStore.parts[k] || {}).body || "").indexOf(ch) >= 0;
+            return partHasHeading(String((partStore.parts[k] || {}).body || ""), ch);
           });
           if (!hit2.length) { allFound = false; return; }
           hits2 = hits2.concat(hit2);
@@ -682,6 +705,24 @@ footer.site-footer a { color: var(--color-mute); }
         reset: (obj.reset && typeof obj.reset === "object") ? obj.reset : null
       };
       return true;
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  function persistResultListStore() {
+    try {
+      if (resultListStore.length) sessionStorage.setItem(RL_STORE_KEY, JSON.stringify(resultListStore));
+      else sessionStorage.removeItem(RL_STORE_KEY);
+    } catch (e) { /* 保存できない環境では保持しないだけ */ }
+  }
+  function restoreResultListStore() {
+    try {
+      var raw = sessionStorage.getItem(RL_STORE_KEY);
+      if (!raw) return false;
+      var obj = JSON.parse(raw);
+      if (!Array.isArray(obj)) return false;
+      resultListStore = obj.filter(function (b) { return b && typeof b === "object" && Array.isArray(b.claims); });
+      return resultListStore.length > 0;
     } catch (e) { /* ignore */ }
     return false;
   }
@@ -857,8 +898,14 @@ footer.site-footer a { color: var(--color-mute); }
 
   /* 処理順: 結合 → 圧縮記法の展開 → ensureStyle → 自動修復 → 採番 → トークン置換 →
      検査 → プレビュー。保存・印刷はすべて最終HTML（currentHtml）を使う */
+  /* finalizeへ最後に渡した入力（結果一覧が後から貼られたときに、同じ入力で
+     再finalizeして付録Cへ反映するために使う。PART組み上げ・レガシー完成HTMLの
+     どちらでも動くよう、渡された引数をそのまま保持する） */
+  var lastFinalizeSrc = null;
+
   function finalize(html, info) {
     info = info || {};
+    lastFinalizeSrc = { html: html, info: info };
     /* AIが短い記法で書いた引用・参考文献を、従来と同一のHTMLへ戻す。
        フルHTMLで書かれた文書には該当パターンが無いので素通しになる */
     var expanded = RR.expandCompact(html);
@@ -879,11 +926,36 @@ footer.site-footer a { color: var(--color-mute); }
       repair: v51 ? rep : null,
       partSet: info.partSet || null,
       tokens: filled,
-      v51: v51
+      v51: v51,
+      resultList: resultListStore
     };
     renderResults(RR.runChecks(currentHtml, checkInfo));
+    /* 結果一覧（S/C/N/RECEIPT行）が貼られていれば、付録B直後・免責の前に付録C（主張台帳）を
+       機械生成して差し込む——**検査(runChecks)の後**に行う（プレビュー・保存用のcurrentHtml
+       だけを変える）。検査より前に差し込むと、抜粋欄に含まれる `{…}`/`[[…]]`/`R|` のような
+       文字列を検査1・19が「未展開の記法」として検出し、AIの出力に存在しない文字列を
+       延々と直せと送る事故になる（実走で確認された、この機能自体が新たに作った派生赤） */
+    if (v51 && resultListStore.length) {
+      try {
+        var docForLedger = new DOMParser().parseFromString(currentHtml, "text/html");
+        var ledger = RR.buildLedgerHtml(docForLedger, currentHtml, resultListStore, rn.map || {});
+        if (ledger && ledger.html) currentHtml = injectLedger(currentHtml, ledger.html);
+      } catch (e) { /* 台帳生成に失敗してもレポート本体の検査・保存は止めない */ }
+    }
     updatePreview(currentHtml);
     updateStatusUI();
+  }
+
+  /* 付録C（主張台帳）のHTMLを、付録B（あれば）の直後・免責の前に差し込む。
+     .disclaimer が見つからなければ </body> の直前へ、それも無ければ末尾へ足す
+     （文字列レベルの挿入。DOM再直列化による属性順序の揺れを避ける） */
+  function injectLedger(html, sectionHtml) {
+    var s = String(html || "");
+    var mDisclaimer = /<div\s+class=["'][^"']*\bdisclaimer\b[^"']*["'][^>]*>/i.exec(s);
+    if (mDisclaimer) return s.slice(0, mDisclaimer.index) + sectionHtml + s.slice(mDisclaimer.index);
+    var mBody = /<\/body>/i.exec(s);
+    if (mBody) return s.slice(0, mBody.index) + sectionHtml + s.slice(mBody.index);
+    return s + sectionHtml;
   }
 
   /* PARTマーカーが無い入力を「完成レポート」として処理してよいか。
@@ -897,6 +969,30 @@ footer.site-footer a { color: var(--color-mute); }
   }
 
   function intake(raw) {
+    /* 結果一覧（S/C/N/RECEIPT行）の貼り付けはPART・完成レポートの取り込みとは別経路。
+       レポートが既に完成していればその場で付録Cへ反映し、まだなければ蓄積するだけで
+       「レポートが完成したら反映される」旨を伝える（貼り付け欄は空にする） */
+    if (RR.looksLikeResultList(raw)) {
+      var rl = RR.parseResultList(raw);
+      /* S/C/RECEIPT行が1つも実際には解析できなかった場合（例: 「N|…」1行だけの
+         断片や、判定を通過しただけの雑音）は結果一覧として蓄積せず、以降の
+         通常のPART・完成レポート判定へ回す（受け取り途中の断片保護を誤って
+         迂回させないため） */
+      if (rl.claimCount || rl.sourceCount) {
+        resultListStore.push(rl);
+        persistResultListStore();
+        input.value = "";
+        syncCheckBtn();
+        if (currentHtml && lastFinalizeSrc) {
+          eventNotice = "結果一覧を取り込みました（主張 " + rl.claimCount + "件）。付録Cへ反映します";
+          finalize(lastFinalizeSrc.html, lastFinalizeSrc.info);
+        } else {
+          eventNotice = "結果一覧を取り込みました（主張 " + rl.claimCount + "件）。レポートが完成すると付録Cに反映されます";
+          updateStatusUI();
+        }
+        return { resultList: true, claimCount: rl.claimCount };
+      }
+    }
     var res = RR.parseParts(raw);
     if (res.legacy) {
       /* PART受領が進行中（partStore.nがある）のに、マーカーもレポートらしい構造も無い
@@ -1020,6 +1116,9 @@ footer.site-footer a { color: var(--color-mute); }
     currentHtml = "";
     partStore = { n: 0, rid: "", title: "", parts: {}, reset: null };
     persistStore();
+    resultListStore = [];
+    persistResultListStore();
+    lastFinalizeSrc = null;
     lastResults = [];
     fixRounds = 0;
     resultsBox.classList.remove("is-visible");
@@ -1112,6 +1211,8 @@ footer.site-footer a { color: var(--color-mute); }
     getFixRounds: function () { return fixRounds; }
   };
 
+  /* 起動時: 貼り付け済みの結果一覧があれば先に復元する（finalizeが参照する） */
+  if (RR) restoreResultListStore();
   /* 起動時: 受け取り途中のPARTがあれば復元する */
   if (RR && restoreStore()) {
     var st0 = RR.partStatus(partStore);

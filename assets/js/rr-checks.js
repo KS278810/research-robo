@@ -196,7 +196,19 @@
     else if (missing.length) citeTitle = "本文の引用番号に、対応する参考文献がないものがあります";
     else if (used.size === 0) citeTitle = "本文に引用番号が1つも見つかりません";
     else citeTitle = "参考文献リストに、本文で使われていない資料があります";
-    addResult(results, citeOk, "引用番号と参考文献リストが過不足なく対応している", citeDetail, { title: citeTitle });
+    /* 実走: {{RR:REFERENCES}}のような未知トークンで参考文献セクション自体が
+       欠けたとき、この検査は125件の欠落番号を列挙する赤になった。原因（未知
+       トークン）は検査1が既にPART特定つきで指摘しているため、この検査は
+       その派生（読めない大量列挙）に過ぎない。検査1が未知トークンを検出して
+       いる間はwarnへ落とし、AIには根本原因だけを送る（検査1を直せば消える）。
+       ただし「参考文献セクションが実際に空（defined=0）」のときだけに限る——
+       未知トークンが本文の別の場所に1個あるだけの無関係なケースで、本物の
+       引用↔参考文献の不整合まで黙らせてしまわないように絞る */
+    var citeDerivedFromUnknownToken = !!(info && info.tokens && info.tokens.unknown && info.tokens.unknown.length) && defined.size === 0;
+    addResult(results, citeOk, "引用番号と参考文献リストが過不足なく対応している", citeDetail,
+      citeDerivedFromUnknownToken && !citeOk
+        ? { kind: "warn", title: citeTitle + "（上の未置換トークンの結果です。そちらを直すとここも解消します）" }
+        : { title: citeTitle });
 
     // 3. 禁止語スキャン（script/style/参考文献を除いた本文テキスト。英語は語境界つき）
     var textOnly = bodyTextForScan(html);
@@ -296,6 +308,20 @@
 
   function notInAppendix(el) { return !(el && el.closest && el.closest(".appendix")); }
 
+  /* id（apx-a/apx-b）を落として自前の見出しだけで付録を書いた文書でも集計を
+     取りこぼさないためのフォールバック。実走で、付録Bにidが付かず表紙の
+     「未確認事項」が実態と異なる0件と表示された事例があった。h2の先頭一致で
+     見出しテキストから探す（本文中の同名見出しと区別するため section.appendix
+     クラス限定） */
+  function appendixByHeading(doc, prefix) {
+    var secs = doc.querySelectorAll("section.appendix");
+    for (var i = 0; i < secs.length; i++) {
+      var h2 = secs[i].querySelector("h2");
+      if (h2 && (h2.textContent || "").trim().indexOf(prefix) === 0) return secs[i];
+    }
+    return null;
+  }
+
   /* KIT §19.2 の body 順序で <div class="body-columns"> の外に来るべき要素
      （調査手法・参考文献・付録A/B・免責）。誤って内側に書かれた場合に autoRepair が正す */
   var TAIL_SEL = '#sec-method, #references, #apx-a, #apx-b, .references, .appendix, .disclaimer';
@@ -369,6 +395,136 @@
       });
     }
     return out;
+  }
+
+  /* 2026-09-02（お手軽+DRのうまみ最大化・付加価値レバー）: 結果一覧（S/C/N/RECEIPT行、
+     KIT §5.2の書式）をviewerへ任意で貼ると、原文抜粋・確認状態を成果物の付録Cへ
+     出せる。DRレポート単体には無い「主張単位の検証可能性」を機械生成する。
+     lite・full共通の行形式（1行1レコード、|区切り）をそのまま読む。フル版で複数WPの
+     結果一覧を貼った場合、末尾の RESULT_COMPLETE: {wp_id} からWP識別子を拾っておく
+     （本文の資料ID解決に使う。full版の集約後ID（C-2-07等）とは別物のため、
+     解決できない場合はそのまま「未確定」として台帳に残すだけで機能は止めない） */
+  /* dispatch.html の normLines と受理範囲を揃える: 全角｜→半角、全角数字→半角、
+     Markdown表のように行頭にも|がある形（`| S1 | pr | … |`）は対で剥がす（末尾だけの
+     |は抜粋欄などの空欄の区切りとして残す。行頭に|が無ければ剥がさない）。
+     揃えていないと、同じ結果一覧をdispatchでは受理できてもviewerでは「断片です」に
+     なる、といった食い違いが起きる */
+  function normResultListLine(line) {
+    var t = String(line == null ? "" : line).replace(/｜/g, "|").trim();
+    t = toHalfDigits(t);
+    var hadLeadingPipe = /^\|/.test(t);
+    t = t.replace(/^\|\s*/, "");
+    if (hadLeadingPipe) t = t.replace(/\s*\|$/, "");
+    return t;
+  }
+
+  function parseResultList(raw) {
+    var lines = String(raw || "").replace(/﻿/g, "").split(/\r?\n/);
+    var sources = {}, claims = [], unconfirmed = [], receipt = "", wp = "";
+    lines.forEach(function (line) {
+      var t = normResultListLine(line);
+      if (!t) return;
+      var mS = t.match(/^S(\d+)\|(.*)$/);
+      if (mS) {
+        var sf = mS[2].split("|");
+        sources[mS[1]] = {
+          sNum: mS[1], type: (sf[0] || "").trim(), publisher: (sf[1] || "").trim(),
+          title: (sf[2] || "").trim(), date: (sf[3] || "").trim(), url: (sf[4] || "").trim(),
+          viewOnly: /閲覧のみ/.test(sf[5] || "")
+        };
+        return;
+      }
+      var mC = t.match(/^C(\d+)\|(.*)$/);
+      if (mC) {
+        var cf = mC[2].split("|");
+        claims.push({
+          cNum: mC[1], sNum: (cf[0] || "").replace(/^S/i, "").trim(), qNum: (cf[1] || "").replace(/^Q/i, "").trim(),
+          subject: (cf[2] || "").trim(), claim: (cf[3] || "").trim(),
+          tags: (cf[4] || "").trim(), value: (cf[5] || "").trim(), excerpt: (cf[6] || "").trim()
+        });
+        return;
+      }
+      var mN = t.match(/^N\|(.*)$/);
+      if (mN) { unconfirmed.push(mN[1]); return; }
+      var mR = t.match(/^RECEIPT\|(.*)$/);
+      if (mR) { receipt = mR[1]; return; }
+      var mDone = t.match(/^RESULT_COMPLETE\s*[:：]\s*(\S+)/i);
+      /* WP_IDは「WP2」のようにWP接頭辞つきで書かれる（full KIT §5.5）。参考文献IDの
+         WP接頭辞は0詰めしない数字だけ（R|1-7|）なので、ここでもWPを剥がし、
+         数字なら0詰めを取り除いて揃える（「WP02」のような表記でも解決できるように） */
+      if (mDone) {
+        var wpRaw = mDone[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
+        wp = /^\d+$/.test(wpRaw) ? String(parseInt(wpRaw, 10)) : wpRaw;
+        return;
+      }
+    });
+    return { sources: sources, claims: claims, unconfirmed: unconfirmed, receipt: receipt, wp: wp,
+             claimCount: claims.length, sourceCount: Object.keys(sources).length };
+  }
+
+  /* 結果一覧のC行（cNum）を本文の主張ID（data-claim）と同じcanon形式に変換する。
+     lite（WP無し）は"C-{cNum}"のまま。full（WP接頭辞つき）は"C-{wp}-{cNum}"にする
+     ——貼り付け時点ではAIはWPローカル番号（C7|S2|…）で書くため、これをしないと
+     フル版の結果一覧は本文のC-2-07等と永遠に一致しない（実走で確認: 全行「一覧のみ」
+     になり、check20が全件を誤って「本文に反映されていない」と警告した） */
+  function ledgerClaimId(block, claim) {
+    var wp = (block && block.wp) || "";
+    return canonId("C-" + (wp ? wp + "-" : "") + claim.cNum);
+  }
+
+  /* 結果一覧のテキストかどうか（PART・完成レポートとは排他）。S/C/N/RECEIPT行が
+     1行でも行頭にあれば結果一覧とみなす */
+  function looksLikeResultList(raw) {
+    var s = String(raw || "");
+    if (/<!--\s*RR-PART/i.test(s) || /<html[\s>]/i.test(s) || /<!doctype/i.test(s)) return false;
+    var norm = s.split(/\r?\n/).map(normResultListLine).join("\n");
+    return /^S\d+\|/m.test(norm) || /^C\d+\|/m.test(norm) || /^RECEIPT\|/m.test(norm) || /^N\|/m.test(norm);
+  }
+
+  /* 貼り付けられた結果一覧群から付録C（主張台帳）のHTMLを作る。
+     doc/htmlは展開・自動修復・再採番まで済んだ最終文書（本文の引用状態・参考文献番号を
+     読むため）。refMapはrenumberRefs().map（AIが書いた資料ID→表示上の参考文献番号）。
+     blocks は parseResultList() の返り値の配列（複数ブロックの貼付・60行分割に対応） */
+  function buildLedgerHtml(doc, html, blocks, refMap) {
+    if (!blocks || !blocks.length) return null;
+    var cited = citedClaimSet(doc);
+    var uncitedReason = {};
+    parseUncited(html).entries.forEach(function (e) { uncitedReason[e.id] = e.reason || ""; });
+    var fullStyleId = /data-claim="[^"]*C-\d+-\d+/.test(html);
+    var rows = [];
+    var seen = {};
+    blocks.forEach(function (b) {
+      (b.claims || []).forEach(function (c) {
+        var canon = ledgerClaimId(b, c);
+        /* 同じ結果一覧を2回貼った・60行分割で重なって貼られた場合の重複排除。
+           先に出てきた行を残す（実走で確認: 同一リスト2回貼付で台帳が二重化した） */
+        if (seen[canon]) return;
+        seen[canon] = true;
+        var status = "一覧のみ";
+        if (cited[canon]) status = "本文で引用";
+        else if (uncitedReason[canon] !== undefined) status = "本文未引用（" + (uncitedReason[canon] || "理由記載") + "）";
+        /* WPが判っている場合はWP修飾キーを先に引く（裸のsNumが別WPの資料と衝突する
+           ことがあるため） */
+        var refKey = b.wp ? (b.wp + "-" + c.sNum) : c.sNum;
+        var refNum = (refMap && (b.wp ? (refMap[refKey] || refMap[c.sNum]) : refMap[c.sNum])) || "";
+        var src = (b.sources || {})[c.sNum];
+        var srcLabel = src ? [src.publisher, src.title ? "「" + src.title + "」" : ""].filter(Boolean).join("") : "";
+        rows.push({ id: "C-" + c.cNum, claim: c.claim, sNum: c.sNum, refNum: refNum, srcLabel: srcLabel, excerpt: c.excerpt, status: status });
+      });
+    });
+    if (!rows.length) return null;
+    var trs = rows.map(function (r) {
+      var srcCell = r.refNum ? "[" + escText(r.refNum) + "]" : "S" + escText(r.sNum) + (r.srcLabel ? "（" + escText(r.srcLabel) + "）" : "");
+      return "<tr><td>" + escText(r.id) + "</td><td>" + escText(r.claim) + "</td>" +
+        "<td>" + srcCell + "</td>" +
+        "<td>" + escText(r.excerpt) + "</td><td>" + escText(r.status) + "</td></tr>";
+    }).join("");
+    var note = fullStyleId
+      ? '<p class="note">主張IDがWPをまたぐ形式のため、資料・掲載状況の自動判定は一部の主張でのみ有効です。</p>' : "";
+    var html2 = '<section class="appendix ledger" id="apx-c"><h2>付録C　主張台帳</h2>' + note +
+      '<table><thead><tr><th>ID</th><th>主張</th><th>資料</th><th>原文抜粋</th><th>掲載</th></tr></thead>' +
+      "<tbody>" + trs + "</tbody></table></section>";
+    return { html: html2, rowCount: rows.length };
   }
 
   /* PART 1 の目次直後に置かれる章計画コメントを読む。
@@ -516,10 +672,18 @@
     var refs = Array.prototype.filter.call(doc.querySelectorAll('li[id^="ref-"]'), notInAppendix);
     var typedRefs = Array.prototype.filter.call(doc.querySelectorAll('li[id^="ref-"][data-source-type]'), notInAppendix);
     if (!refs.length) {
+      /* 未知トークン（{{RR:REFERENCES}}等）で参考文献セクションごと欠落した場合、
+         この検査は上の検査1と同じ原因を「見つかりません」とだけ言い直す派生の赤に
+         なる。検査1が既にPART特定つきで指摘しているのでwarnへ落とす（citeDetail側と
+         同じ判断。トークンが無いのに参考文献が本当に無い場合は従来どおり赤のまま） */
+      var refsDerivedFromUnknownToken = !!(info && info.tokens && info.tokens.unknown && info.tokens.unknown.length);
       addResult(results, !v51, "参考文献が3件以上あり、一次資料が含まれている",
         v51 ? "このKITの形式のレポートですが、参考文献（section.references 内の li[id^=\"ref-\"]）が見つかりません。"
             : "参考文献リスト（li[id^=\"ref-\"]）が見つかりませんでした。",
-        v51 ? { title: "参考文献リストが見つかりません" }
+        v51
+          ? (refsDerivedFromUnknownToken
+              ? { kind: "warn", title: "参考文献リストが見つかりません（上の未置換トークンの結果です。そちらを直すとここも解消します）" }
+              : { title: "参考文献リストが見つかりません" })
             : { kind: "na", title: "参考文献リストが見つからないため、この項目は判定していません" });
     } else if (!typedRefs.length) {
       addResult(results, !v51, "参考文献が3件以上あり、一次資料が含まれている",
@@ -802,9 +966,12 @@
 
   /* 貼り付け内容から <!-- RR-PART k/n --> … <!-- RR-END k/n --> の区間を切り出す。
      マーカーが無ければ legacy（従来の完成HTML経路） */
-  /* KITの上限は6（がっつりは8）。ここでの上限はAIの誤記（マーカーの桁を打ち間違える等）
-     による巨大なnを弾くための安全弁で、余裕を持たせて12とする */
-  var MAX_PARTS = 12;
+  /* KITの本文PART上限は6（がっつりは8）。ただし2026-09-02からフル版は末尾（調査手法・
+     参考文献・付録・免責）の分割PARTをこの上限に含めない設計になり、参考文献が
+     多い調査では本文8＋末尾4〜5で13を超えうる。ここでの上限はAIの誤記（マーカーの
+     桁を打ち間違える等）による異常な巨大nを弾くための安全弁なので、その設計変更後の
+     現実的な最大値に余裕を持たせて16とする */
+  var MAX_PARTS = 16;
   function parseParts(raw) {
     var s = String(raw || "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
     s = canonMarkers(s);
@@ -1414,7 +1581,7 @@
     st.refCount = refs.length;
     refs.forEach(function (li) { if (PRIMARY_TYPES.indexOf((li.getAttribute("data-source-type") || "").trim().toLowerCase()) !== -1) st.primaryCount++; });
     st.primaryRatio = refs.length ? Math.round(st.primaryCount / refs.length * 100) + "%" : "－";
-    var apxA = doc.querySelector("#apx-a, #apx-sources") || doc.querySelector("section.appendix.references");
+    var apxA = doc.querySelector("#apx-a, #apx-sources") || doc.querySelector("section.appendix.references") || appendixByHeading(doc, "付録A");
     var apxItems = apxA ? Array.prototype.slice.call(apxA.querySelectorAll("li")) : [];
     st.appendixCount = apxItems.length;
     var urlSeen = {}, pubSeen = {}, catSeen = {};
@@ -1449,7 +1616,7 @@
     unc.entries.forEach(function (e) { if (/^C-/.test(e.id)) claimIds[e.id] = true; });
     st.claimCount = Object.keys(claimIds).length;
     st.citationCount = Array.prototype.filter.call(doc.querySelectorAll('sup a[href^="#ref-"]'), notInAppendix).length;
-    var apxB = doc.querySelector("#apx-b, #apx-unconfirmed");
+    var apxB = doc.querySelector("#apx-b, #apx-unconfirmed") || appendixByHeading(doc, "付録B");
     st.unconfirmedCount = apxB ? Array.prototype.filter.call(apxB.querySelectorAll("li"), function (li) { return !(li.classList && li.classList.contains("none")); }).length : 0;
     var ents = {};
     Array.prototype.forEach.call(doc.querySelectorAll("[data-entity]"), function (el) {
@@ -1797,12 +1964,29 @@
             "欠けているIDを列挙してから直してください。";
         }
       }
+      /* 2026-09-02（オーナー判断）: 主張IDの差分が片側だけ（欠落のみ、または超過のみ）で、
+         かつUNCITED上限（max(1,5%)）以内・原因IDを実名で特定できている場合は黄に落とす
+         （AIへは送らない。IDは画面のtitleへそのまま表示する）。実走で、引用率80%要件を
+         満たす3%の欠落（207件中6件）がそのまま赤としてAIに送られ、出し直しを招いていた。
+         両方混在・上限超過・PLAN不信頼で特定できない場合は従来どおり赤のまま送る */
+      var uncitedCap17 = Math.max(1, Math.floor(total * 0.05));
+      var mild17 = false;
+      if (!okc) {
+        if (union > total) {
+          mild17 = planTrustworthy && !!over && over.length > 0 && over.length === (union - total) && over.length <= uncitedCap17;
+        } else {
+          mild17 = planTrustworthy && missingIds.length > 0 && missingIds.length === (total - union) && missingIds.length <= uncitedCap17;
+        }
+      }
       addResult(results, okc, "確認済み件数（rr:confirmed-count）と本文の主張ID数が一致している",
         d17 + "本文で引用・UNCITEDに挙げた主張ID " + union + " 件 / 確認済み " + total + " 件",
-        { title: okc ? "確認済み件数と本文の記載が一致しています"
+        { kind: mild17 ? "warn" : undefined,
+          title: okc ? "確認済み件数と本文の記載が一致しています"
+                     : mild17 ? "確認した事実の件数が本文とわずかに合いません（本文 " + union + "件／確認済み " + total + "件。差分ID: " +
+                         (union > total ? over.join(", ") : missingIds.join(", ")) + "）。5%以内のため、そのままでも完成できます"
                      : "確認した事実の件数が本文と合いません（本文 " + union + "件／確認済み " + total + "件）",
           missingIds: missingIds,
-          next: okc ? "" : "AIに「不備をコピー」の文面を送る" });
+          next: okc ? "" : mild17 ? "任意: 差分IDを本文かUNCITED行へ追記" : "AIに「不備をコピー」の文面を送る" });
 
       /* 17b. PLANコメント（章への主張割当）の整合。両KITは「確認済み主張の全IDを
          どれかの章にちょうど1回ずつ割り当てる」と定めており、割当漏れがそのまま
@@ -1897,6 +2081,31 @@
         "。資料IDは英数字とハイフンだけにし、参考文献行は R|資料ID|種別|書誌|URL（URLは http:// か https:// で始まる）の形にして、該当PARTを出し直してください",
       { title: ok19 ? "引用・参考文献の記法はすべて展開できました"
                     : "展開できない引用・参考文献の記法が残っています（資料IDかURLの書式誤り）" });
+
+    // 20. 結果一覧（付録C・任意貼付）との整合。貼っていなければ何も出さない。
+    //     常にlocal:trueかつkind:warn/log（AIには送らない。issueTextの対象外）——
+    //     この検査はAIの出力の不備ではなく、貼り付けた結果一覧との突き合わせ情報
+    if (info.resultList && info.resultList.length) {
+      var rlClaims = [];
+      info.resultList.forEach(function (b) { (b.claims || []).forEach(function (c) { rlClaims.push({ block: b, claim: c }); }); });
+      if (rlClaims.length) {
+        var rlCited = citedClaimSet(doc);
+        var rlUncitedIds = {};
+        parseUncited(html).entries.forEach(function (e) { rlUncitedIds[e.id] = true; });
+        var rlMissing = rlClaims.filter(function (bc) {
+          var id = ledgerClaimId(bc.block, bc.claim);
+          return !rlCited[id] && !rlUncitedIds[id];
+        });
+        var rlNoExcerpt = rlClaims.filter(function (bc) { return /\d/.test(bc.claim.value || "") && !bc.claim.excerpt; });
+        addResult(results, rlMissing.length === 0, "結果一覧との整合（付録C・任意貼付）",
+          "結果一覧のC行 " + rlClaims.length + " 件のうち、本文にもUNCITEDにも現れないもの " + rlMissing.length + " 件" +
+            (rlMissing.length ? "：" + rlMissing.map(function (bc) { return ledgerClaimId(bc.block, bc.claim); }).join(", ") : "") + "。" +
+            "数値を含むのに抜粋欄が空の行 " + rlNoExcerpt.length + " 件。",
+          { kind: rlMissing.length ? "warn" : "log", local: true,
+            title: rlMissing.length ? "貼り付けた結果一覧の主張が本文に反映されていないものがあります"
+                                     : "貼り付けた結果一覧の主張はすべて本文に反映されています" });
+      }
+    }
   }
 
   function sanitizeForFilename(s) {
@@ -1985,6 +2194,9 @@
     notInAppendix: notInAppendix,
     citedClaimSet: citedClaimSet,
     parseUncited: parseUncited,
+    parseResultList: parseResultList,
+    looksLikeResultList: looksLikeResultList,
+    buildLedgerHtml: buildLedgerHtml,
     parseParts: parseParts,
     MAX_PARTS: MAX_PARTS,
     partStatus: partStatus,

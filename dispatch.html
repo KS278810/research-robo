@@ -437,7 +437,11 @@ footer.site-footer a { color: var(--color-mute); }
       var name = (f.head && f.head[3] && f.head[3].trim()) || extractField(f.body, "担当") || ("プロンプト " + (idx + 1));
       var num = f.head ? parseNum(f.head[1]) : (idx + 1);
       var meta = parseEnvelopeMeta(f.body);
-      return { wpId: wpId || ("WP" + (idx + 1)), researchId: researchId, name: name, num: num || (idx + 1), text: f.body, status: "todo", startedAt: 0, questions: meta.questions, period: meta.period };
+      /* WP_IDが本文から読み取れない場合（Envelopeの記述ドリフト等）、"WP1"のような
+         採番にすると既存の本物のWP1カードとキーが衝突し、importWpsがその内容を
+         無言で上書きしてしまう（実地で確認しうる不具合）。衝突しない印付きの
+         仮IDにして、上書きではなく新規カードとして扱わせる */
+      return { wpId: wpId || ("WP_UNKNOWN" + (idx + 1)), researchId: researchId, name: name, num: num || (idx + 1), text: f.body, status: "todo", startedAt: 0, questions: meta.questions, period: meta.period };
     });
   }
 
@@ -525,7 +529,10 @@ footer.site-footer a { color: var(--color-mute); }
     var pc = wpc && wpc.precheck;
     if (!pc) return "";
     var label = pc.complete ? (pc.snippets ? "・抜粋補完" : pc.addendum ? "・追加分" : "・完結") : "・未完結";
-    return "資料 " + pc.s + "／主張 " + pc.c + "／未確認 " + pc.n + "（行形式・事前確認" + label + "）";
+    /* Source Re-check WPはV行だけを返しC/S/N行を返さない設計のため、再描画時にも
+       検証件数を残す（貼付直後の表示だけにあると、ページ再描画のたび「0件」に
+       見えて完結した検証結果が失敗のように映る） */
+    return "資料 " + pc.s + "／主張 " + pc.c + "／未確認 " + pc.n + (pc.v ? "／検証 " + pc.v : "") + "（行形式・事前確認" + label + "）";
   }
 
   function renderWps() {
@@ -597,7 +604,13 @@ footer.site-footer a { color: var(--color-mute); }
   function normLines(text) {
     return normText(text).split("\n").map(function (l) {
       var t = l.trim();
-      t = t.replace(/^\|\s*/, "").replace(/\s*\|$/, "");
+      /* Markdown表の行（先頭にも|がある）だけ、末尾の|も対で剥がす。先頭に|が無い
+         行（S/C/N行など仕様どおりの結果一覧）の末尾|は、抜粋欄などが空欄で
+         残した区切りの可能性があるため剥がさない（剥がすと欄数が1つ減り、
+         規定どおり空欄を残した行が「区切りの少ない行」に誤判定される） */
+      var hadLeadingPipe = /^\|/.test(t);
+      t = t.replace(/^\|\s*/, "");
+      if (hadLeadingPipe) t = t.replace(/\s*\|$/, "");
       t = t.replace(/^-\s+/, "").replace(/^\d+\.\s+/, "");
       t = t.replace(/^\*\*/, "").replace(/\*\*$/, "");
       t = t.trim().replace(/\s*\|\s*/g, "|");
@@ -664,7 +677,11 @@ footer.site-footer a { color: var(--color-mute); }
     if (RE_LINES_COMPLETE.test(normJoined) && hasRow) return "lines";
     if (RE_LINES_PART.test(normJoined) && hasRow) return "lines";
     if (nl.filter(function (l) { return /^[SC]\d*\|/.test(l); }).length >= 3) return "lines";
-    if (/^\s*\|[^\n]*\|\s*$/m.test(t) && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/m.test(t)) return "lines";
+    /* Markdown表（| ... | + ---|---区切り）は、S/C/N/R/V行がMarkdown表の見た目で
+       貼られたときだけ"lines"にする（hasRow必須）。DRレポート本文の通常の
+       データ表（例: 年度|台数|出典）まで"lines"に誤分類すると、正しい案内
+       （「一覧」と送って変換する）ではなく的外れな案内が出る（実地で確認された不具合） */
+    if (hasRow && /^\s*\|[^\n]*\|\s*$/m.test(t) && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/m.test(t)) return "lines";
     if (/https?:\/\//.test(t)) return "prose";
     return "unknown";
   }
@@ -714,10 +731,14 @@ footer.site-footer a { color: var(--color-mute); }
       var pc = precheckLines(text, opts.wpHint || "");
       var completeLabel = pc.complete ? ("・完結（RESULT_COMPLETE" + (pc.addendum ? "・追加分" : pc.snippets ? "・抜粋補完" : "") + "）") :
         (pc.part ? "・PART " + pc.part.k + "/" + pc.part.n + "（続きあり。そのチャットに「次」と送ってください）" : "・RESULT_COMPLETE行なし（途中で切れている可能性。そのチャットに「次」と送ってください）");
-      var lbl = (pc.wpId ? pc.wpId + ": " : "") + "資料 " + pc.s + "件・主張 " + pc.c + "件・未確認 " + pc.n + "件" + completeLabel;
+      /* Source Re-check WPはC行を返さずV行だけを返す設計（フルKIT §14）。
+         V行があるのにC/S/N件数だけを表示すると「0件」ばかりに見えて
+         完結した結果が失敗のように映るため、V行がある場合だけ内訳に加える */
+      var lbl = (pc.wpId ? pc.wpId + ": " : "") + "資料 " + pc.s + "件・主張 " + pc.c + "件・未確認 " + pc.n + "件" +
+        (pc.v ? "・検証 " + pc.v + "件" : "") + completeLabel;
       var envWp = pc.wpId ? findWp(pc.wpId) : null;
       if (envWp) { pc.wpId = envWp.wpId; /* カードのdata-wp属性と一致する保存形へ揃える */
-        envWp.precheck = { s: pc.s, c: pc.c, n: pc.n, complete: pc.complete, addendum: pc.addendum, snippets: pc.snippets, at: Date.now() };
+        envWp.precheck = { s: pc.s, c: pc.c, n: pc.n, v: pc.v, complete: pc.complete, addendum: pc.addendum, snippets: pc.snippets, at: Date.now() };
         if (pc.complete) { envWp.status = "done"; envWp.startedAt = 0; }
         else if (envWp.status === "todo") envWp.status = "running";
         save(); renderWps();

@@ -69,6 +69,11 @@
     '.appendix ol,.appendix ul{column-count:2;column-gap:10mm;font-size:8.5pt;color:var(--sub);padding-left:5mm;}',
     '.appendix li{break-inside:avoid;margin-bottom:2mm;overflow-wrap:anywhere;}',
     '.appendix a{color:var(--accent);}',
+    /* 付録C 主張台帳（結果一覧を任意貼付したときだけ生成される）。列数が多く
+       原文抜粋が長くなりがちなので、通常の本文表より小さいフォント・行間にする */
+    '#apx-c table{font-size:7.5pt;}',
+    '#apx-c td,#apx-c th{padding:1.2mm 2mm;overflow-wrap:anywhere;}',
+    '#apx-c .note{font-size:8pt;color:var(--sub);}',
     /* 表紙6タイルの折り返し（A4横ではみ出さない。max-widthを200mmへ広げたので6枚は2段に
        折り返さず収まるが、将来タイル数が増えても崩れないよう最小幅を残しておく） */
     '.stat-row .stat{min-width:28mm}'

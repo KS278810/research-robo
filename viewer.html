@@ -244,7 +244,7 @@ footer.site-footer a { color: var(--color-mute); }
 
     <div class="privacy-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>貼り付けた内容はこのブラウザの中だけで処理され、どこにも送信されません。</span>
+      <span>貼り付けた内容は外部に送信されません（フォント読み込みのみGoogle Fontsを使用）。</span>
     </div>
 
     <div class="panel">
@@ -709,11 +709,17 @@ footer.site-footer a { color: var(--color-mute); }
     return false;
   }
 
+  /* 2026-09-03(バグ再修正・A12): 保存できない環境（容量超過等）では再読み込み時に古い
+     蓄積へ無言で戻ってしまうため、次の状態表示にこの1行を足す（renderPartStatusが読む） */
+  var rlStoreWarning = "";
   function persistResultListStore() {
     try {
       if (resultListStore.length) sessionStorage.setItem(RL_STORE_KEY, JSON.stringify(resultListStore));
       else sessionStorage.removeItem(RL_STORE_KEY);
-    } catch (e) { /* 保存できない環境では保持しないだけ */ }
+      rlStoreWarning = "";
+    } catch (e) {
+      rlStoreWarning = "結果一覧の保存に失敗しました。このタブを閉じると蓄積が消えます。";
+    }
   }
   function restoreResultListStore() {
     try {
@@ -736,6 +742,7 @@ footer.site-footer a { color: var(--color-mute); }
     if (replaced && replaced.length) lines.push("PART " + replaced.join(", ") + " を差し替えました");
     if (st && st.message) lines.push(st.message);
     (warnings || []).forEach(function (w) { lines.push(w); });
+    if (rlStoreWarning) lines.push(rlStoreWarning);
     eventNotice = lines.join("。");
     updateStatusUI();
   }
@@ -793,8 +800,10 @@ footer.site-footer a { color: var(--color-mute); }
           if (fixRounds >= 1) {
             /* 出し直しは1回まで。2回目以降も残る赤は、直させ続けるより
                そのまま保存させたほうがよい（ユーザー方針） */
-            statusTitle.textContent = "×の項目が" + n + "件 残っています → このまま「PDFとして保存」して構いません";
-            guidance = "出し直しは1回で十分です。残った不備はそのままで問題ありません（レポートはこのまま使えます）。もう一度だけ直したい場合は「不備をコピー」を押してください";
+            /* 2026-09-03(7回目・初実走FB): 「×が残っている」と「保存して構わない」を
+               1文に同居させると矛盾に見える（実走FB）。判定文と案内文を分ける */
+            statusTitle.textContent = "×の項目が" + n + "件 残っています（AIでは直せない項目です）";
+            guidance = "出し直しは1回で十分です。残った不備はそのままで問題ありません。このまま「PDFとして保存」して構いません。もう一度だけ直したい場合は「不備をコピー」を押してください";
           }
           if (fixRounds >= 2) {
             guidance += "。同じ不備が" + fixRounds + "回続く場合、多くはPARTの混在が原因です。「クリア」を押してから全PARTを貼り直すと解消することがあります";
@@ -857,9 +866,13 @@ footer.site-footer a { color: var(--color-mute); }
     if (plan.mode === "newReport") {
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
       fixRounds = 0;
+      /* 2026-09-03(バグ再修正・A10): 結果一覧の蓄積を残すと、前のレポートの主張が
+         新しいレポートの付録Cに混ざる（実走で確認した「別レポート」誤結合と同型） */
+      resultListStore = [];
+      persistResultListStore();
       notices.push(title40
-        ? "別のレポートのPARTが届きました。前のレポート（" + title40 + "）のPART " + plan.dropped.join(", ") + " は破棄しました"
-        : "別のレポートのPARTが届きました。前のレポートのPART " + plan.dropped.join(", ") + " は破棄しました");
+        ? "別のレポートのPARTが届きました。前のレポート（" + title40 + "）のPART " + plan.dropped.join(", ") + " は破棄しました（結果一覧の蓄積も破棄しました）"
+        : "別のレポートのPARTが届きました。前のレポートのPART " + plan.dropped.join(", ") + " は破棄しました（結果一覧の蓄積も破棄しました）");
     } else if (plan.mode === "newCount") {
       /* 総数が変わった＝AIが分割をやり直した合図。出し直し回数もここでリセットする
          （リセットしないと、新しい分割の1回目の修正がいきなり「これが最後です」に
@@ -927,7 +940,8 @@ footer.site-footer a { color: var(--color-mute); }
       partSet: info.partSet || null,
       tokens: filled,
       v51: v51,
-      resultList: resultListStore
+      resultList: resultListStore,
+      isLite: /^lite-/.test(RR.metaContent(new DOMParser().parseFromString(styled.html, "text/html"), "rr:kit-version") || "")
     };
     renderResults(RR.runChecks(currentHtml, checkInfo));
     /* 結果一覧（S/C/N/RECEIPT行）が貼られていれば、付録B直後・免責の前に付録C（主張台帳）を
@@ -968,29 +982,58 @@ footer.site-footer a { color: var(--color-mute); }
     return /<\/html>/i.test(s);
   }
 
+  /* 2026-09-03(バグ再修正・A9): 1回の貼り付けに複数WPの結果一覧が続けて入っていても、
+     RR-RESULTヘッダの直前で区切って別ブロックにする（1つに潰すと後勝ちのWPで
+     全主張のIDが上書きされる）。ヘッダが無い・1個だけならそのまま1ブロック */
+  function splitResultBlocks(raw) {
+    var re = /^\s*(?:[-*|\s]*)RR-RESULT\b/mig;
+    var idxs = [];
+    var m;
+    while ((m = re.exec(raw))) idxs.push(m.index);
+    if (idxs.length <= 1) return [raw];
+    var segs = [];
+    for (var i = 0; i < idxs.length; i++) segs.push(raw.slice(idxs[i], i + 1 < idxs.length ? idxs[i + 1] : raw.length));
+    return segs;
+  }
+
+  /* 2026-09-03(バグ再修正・A12): 完結済み（receiptあり）のブロックが完全に同一なら
+     蓄積しない（同じ結果一覧を2回貼った場合の二重化防止）。分割途中のブロック
+     （receipt無し）は常に別物として積む */
+  function pushResultListBlock(rl) {
+    if (rl.receipt) {
+      var sig = (rl.wp || "") + "|" + rl.receipt + "|" + rl.claimCount;
+      var dup = resultListStore.some(function (b) { return b.receipt && ((b.wp || "") + "|" + b.receipt + "|" + b.claimCount) === sig; });
+      if (dup) return false;
+    }
+    resultListStore.push(rl);
+    return true;
+  }
+
   function intake(raw) {
     /* 結果一覧（S/C/N/RECEIPT行）の貼り付けはPART・完成レポートの取り込みとは別経路。
        レポートが既に完成していればその場で付録Cへ反映し、まだなければ蓄積するだけで
        「レポートが完成したら反映される」旨を伝える（貼り付け欄は空にする） */
     if (RR.looksLikeResultList(raw)) {
-      var rl = RR.parseResultList(raw);
-      /* S/C/RECEIPT行が1つも実際には解析できなかった場合（例: 「N|…」1行だけの
-         断片や、判定を通過しただけの雑音）は結果一覧として蓄積せず、以降の
-         通常のPART・完成レポート判定へ回す（受け取り途中の断片保護を誤って
-         迂回させないため） */
-      if (rl.claimCount || rl.sourceCount) {
-        resultListStore.push(rl);
+      /* S/C/RECEIPT/N行が1つも実際には解析できなかったブロックは結果一覧として
+         蓄積せず、以降の通常のPART・完成レポート判定へ回す（受け取り途中の断片
+         保護を誤って迂回させないため）。§8.1のN/RECEIPTだけの最終分割ブロックも
+         claimCount/sourceCountが0になるため、unconfirmed/receiptも判定に含める */
+      var blocks = splitResultBlocks(raw).map(RR.parseResultList)
+        .filter(function (rl) { return rl.claimCount || rl.sourceCount || rl.unconfirmed.length || rl.receipt; });
+      if (blocks.length) {
+        var addedCount = 0, claimTotal = 0;
+        blocks.forEach(function (rl) { claimTotal += rl.claimCount; if (pushResultListBlock(rl)) addedCount++; });
         persistResultListStore();
         input.value = "";
         syncCheckBtn();
         if (currentHtml && lastFinalizeSrc) {
-          eventNotice = "結果一覧を取り込みました（主張 " + rl.claimCount + "件）。付録Cへ反映します";
+          eventNotice = "結果一覧を取り込みました（主張 " + claimTotal + "件）。付録Cへ反映します";
           finalize(lastFinalizeSrc.html, lastFinalizeSrc.info);
         } else {
-          eventNotice = "結果一覧を取り込みました（主張 " + rl.claimCount + "件）。レポートが完成すると付録Cに反映されます";
+          eventNotice = "結果一覧を取り込みました（主張 " + claimTotal + "件）。レポートが完成すると付録Cに反映されます";
           updateStatusUI();
         }
-        return { resultList: true, claimCount: rl.claimCount };
+        return { resultList: true, claimCount: claimTotal };
       }
     }
     var res = RR.parseParts(raw);

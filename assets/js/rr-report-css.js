@@ -25,6 +25,10 @@
     '.structure-box{border-top:0.4pt solid var(--hair);padding:3mm 0 0;margin:0 0 8mm;}',
     '.structure-box h2{margin:0 0 2mm;font-size:10pt;letter-spacing:0.08em;color:var(--sub);border:none;padding:0;}',
     '.structure-box ol{margin:2mm 0 0;padding-left:5mm;}',
+    /* 2026-09-03(7回目・初実走FB): 目次の調査手法・対象範囲(#sec-method)はbody-columns
+       の外にあり見出し自体には章番号が付かないため、目次側だけ数字が付くと対応が
+       取れなくなる（実走で確認）。この項目だけ番号を消す */
+    '.toc li:has(a[href="#sec-method"]){list-style:none;}',
     'h2{font-family:"Yu Mincho",YuMincho,"Hiragino Mincho ProN","Noto Serif JP",serif;font-size:14pt;font-weight:600;color:var(--ink);border-top:1.2pt solid var(--accent);padding-top:2.5mm;margin-top:10mm;break-after:avoid;}',
     'h3{font-size:11pt;color:var(--ink);font-weight:700;margin-top:6mm;break-after:avoid;}',
     '.key-message{font-weight:700;color:var(--accent);font-size:10.5pt;margin:2mm 0 4mm;padding-bottom:2mm;border-bottom:0.5pt solid var(--hair);break-after:avoid;}',
@@ -56,6 +60,10 @@
     '.body-columns h3{counter-increment:h3c;}',
     '.body-columns h3::before{content:counter(h2c) "." counter(h3c) "\\2002";font-family:"Helvetica Neue",Arial,sans-serif;color:var(--accent);}',
     '.body-columns table,.body-columns figure{column-span:all;}',
+    /* 2026-09-03(7回目・初実走FB): body全体のpalt（プロポーショナル詰め）が「」等の
+       約物の左余白を詰め、直前の欧文1文字と重なって「OpenA「I …」」のように文字化けして
+       見えた（実走で確認）。書誌欄だけpaltを無効化する */
+    '.references,.appendix{font-feature-settings:normal;}',
     '.references{break-before:page;margin-top:8mm;}',
     '.references ol{column-count:2;column-gap:10mm;font-size:8.5pt;color:var(--sub);padding-left:5mm;}',
     '.references li{break-inside:avoid;margin-bottom:3mm;overflow-wrap:anywhere;}',
@@ -74,6 +82,8 @@
     '#apx-c table{font-size:7.5pt;}',
     '#apx-c td,#apx-c th{padding:1.2mm 2mm;overflow-wrap:anywhere;}',
     '#apx-c .note{font-size:8pt;color:var(--sub);}',
+    '#apx-c .rr-grade{text-align:center;font-weight:700;}',
+    '#apx-c .rr-grade-D{color:var(--sub);}',
     /* 表紙6タイルの折り返し（A4横ではみ出さない。max-widthを200mmへ広げたので6枚は2段に
        折り返さず収まるが、将来タイル数が増えても崩れないよう最小幅を残しておく） */
     '.stat-row .stat{min-width:28mm}'

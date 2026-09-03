@@ -137,7 +137,7 @@ footer.site-footer a { color: var(--color-mute); }
 <main>
   <div class="container">
     <h1>調査ワークベンチ（任意ツール）</h1>
-    <p class="lead"><strong>任意ツールです。標準の手順では最初のチャットへ直接貼り付けます。</strong>このページはプロンプトの管理・経過時間の確認だけに使えます。調査プロンプトを並べて実行状況を管理したいときや、結果の件数を貼る前に確認したいときの補助として使ってください。調査が終わったチャットには「一覧」と送り、出てきた結果はそのまま最初のチャットへ貼り付けてください。</p>
+    <p class="lead"><strong>任意ツールです。標準の手順では最初のチャットへ直接貼り付けます。</strong>このページはプロンプトの管理・経過時間の確認だけに使えます。調査プロンプトを並べて実行状況を管理したいときや、結果の件数を貼る前に確認したいときの補助として使ってください。調査が終わったチャットに出てきたレポートは、丸ごと最初のチャットへそのまま貼ってください（このページでは取り込みません。出典URLがほとんど無い場合だけ最初のチャットが「一覧」を案内します）。</p>
 
     <div class="privacy-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -146,8 +146,8 @@ footer.site-footer a { color: var(--color-mute); }
 
     <div class="panel" id="panel-1">
       <h2>1. 調査プロンプトの応答を貼り付け</h2>
-      <p class="hint">最初のチャットが「調査プロンプトは全部で{N}本です」と返した応答を、先頭から末尾まで丸ごとコピーして貼り付けてください（貼り付けるだけで取り込みます。検証用プロンプトの応答も同じ手順で追加できます）。</p>
-      <textarea id="input-dispatch" placeholder="最初のチャットの応答を丸ごと貼り付け（【1/4】… のコードブロックを含む全文）"></textarea>
+      <p class="hint">最初のチャットが調査プロンプト（【1/1】…のコードブロック。分割された場合は複数）を返した応答を、先頭から末尾まで丸ごとコピーして貼り付けてください（貼り付けるだけで取り込みます。検証用プロンプトの応答も同じ手順で追加できます）。</p>
+      <textarea id="input-dispatch" placeholder="最初のチャットの応答を丸ごと貼り付け（【1/1】… のコードブロックを含む全文）"></textarea>
       <div class="actions">
         <button class="btn btn-primary" id="btn-parse" type="button">プロンプトを取り込む</button>
         <button class="btn btn-outline" id="btn-reset" type="button">この調査の記録を消す</button>
@@ -177,7 +177,7 @@ footer.site-footer a { color: var(--color-mute); }
         </p>
         <strong>Deep Researchのオン方法</strong>：ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」。
         チャット名を「1 …」のように番号つきに変えておくと取り違えを防げます。調査中はタブを見張る必要はありません。
-        調査が終わったチャットには「一覧」と一言送り、出てきた結果（<code>S1|</code>／<code>C1|</code> の行形式）を<strong>最初のチャットへ貼り付けてください</strong>。カードの「結果」欄に貼ると、資料・主張の件数と RESULT_COMPLETE の有無を貼る前に確認できます（任意。分割された場合はそのチャットに「次」を送ってください）。
+        調査が終わったチャットに出てきたレポートを、丸ごと<strong>最初のチャットへそのまま貼ってください</strong>（このページでは取り込みません。出典URLがほとんど無い場合だけ最初のチャットが「一覧」を案内します）。行形式（<code>S1|</code>／<code>C1|</code>）で結果が出た場合はカードの「結果」欄に貼ると、資料・主張の件数と RESULT_COMPLETE の有無を貼る前に確認できます（任意。分割された場合はそのチャットに「次」を送ってください）。
       </div>
     </div>
   </div>
@@ -602,20 +602,9 @@ footer.site-footer a { color: var(--color-mute); }
      Markdownの表（| ... | 区切り＋---|---の区切り行）を貼っても同じ分類に乗る。
      precheckLinesとroutePaste（行形式かどうかの判定）の両方がこれを使う */
   function normLines(text) {
-    return normText(text).split("\n").map(function (l) {
-      var t = l.trim();
-      /* Markdown表の行（先頭にも|がある）だけ、末尾の|も対で剥がす。先頭に|が無い
-         行（S/C/N行など仕様どおりの結果一覧）の末尾|は、抜粋欄などが空欄で
-         残した区切りの可能性があるため剥がさない（剥がすと欄数が1つ減り、
-         規定どおり空欄を残した行が「区切りの少ない行」に誤判定される） */
-      var hadLeadingPipe = /^\|/.test(t);
-      t = t.replace(/^\|\s*/, "");
-      if (hadLeadingPipe) t = t.replace(/\s*\|$/, "");
-      t = t.replace(/^-\s+/, "").replace(/^\d+\.\s+/, "");
-      t = t.replace(/^\*\*/, "").replace(/\*\*$/, "");
-      t = t.trim().replace(/\s*\|\s*/g, "|");
-      return t;
-    }).filter(function (l) {
+    /* 行ごとの正規化はrr-checks.jsのnormResultListLineと同一実装（2026-09-03・A2で統合）。
+       別実装のままだと同じ結果一覧をdispatchは受理してもviewerは断片扱いする食い違いが起きる */
+    return normText(text).split("\n").map(RR.normResultListLine).filter(function (l) {
       if (!l) return false;
       if (/^(```|~~~)/.test(l)) return false;
       if (/^:?-{2,}:?(\|:?-{2,}:?)+$/.test(l)) return false;   // Markdown表の区切り行(---|---)は除く
@@ -651,7 +640,9 @@ footer.site-footer a { color: var(--color-mute); }
       out.wpId = out.wpId || cleanWpId(cm[1]);
     }
     if (pm) { out.part = { k: parseNum(pm[2]), n: parseNum(pm[3]) }; out.wpId = out.wpId || cleanWpId(pm[1]); }
-    var hm = norm.match(/RR-RESULT[^\n]*WP_ID\s*[:：]\s*(\S+)/);
+    /* 2026-09-03(完成前の最終洗い出し・C4): normLinesが" | "を"|"に詰めるため、\S+だと
+       次の|区切りフィールド（例: WP1|PART）まで貪欲に飲み込んでいた。|で止める */
+    var hm = norm.match(/RR-RESULT[^\n]*WP_ID\s*[:：]\s*([^\s|]+)/);
     if (hm) out.wpId = out.wpId || cleanWpId(hm[1]);
     return out;
   }
@@ -762,10 +753,35 @@ footer.site-footer a { color: var(--color-mute); }
       return kind;
     }
     if (kind === "prose") {
-      showIngestResults([{ ok: false, level: "warn", wpId: opts.wpHint || "", label: "文章形式の結果です（このページでは取り込みません）", detail: "そのチャットに「" + RESULT_TRIGGER + "」と一言送り、出てきた行形式の結果を最初のチャットへ貼り付けてください（このページの「結果」欄に貼ると件数だけ確認できます。任意）。" }]);
+      /* 2026-09-03(実走前監査・A-3): フル版はレポート形式での貼り戻しが既定になった
+         （§7.3）。以前の「一覧」誘導は出典URLが少ない場合の補助経路でしかないため、
+         標準の案内をレポートのそのまま貼り付けに変更し、カードもここでdoneにする
+         （従来はRESULT_COMPLETE行が無いprose貼付では進捗が0のまま止まっていた）。
+         2026-09-03(完成前の最終洗い出し・C5): この「これで正常です」はWPカード側の
+         貼り付けだけで出すべき判定で、opts.wpHintが無いパネル1（Envelope貼付欄）から
+         proseと誤判定された場合（Envelopeの記述ドリフト等）にも同じ緑を返していた。
+         wpHintが無いときはEnvelopeが読めなかった旨のwarnに落とす */
+      if (opts.wpHint) {
+        /* 2026-09-03(バグ再修正・A14): URLを1つ含むだけの短い文章（エラーメッセージ等）
+           でもカードが「完了」になっていた。レポートらしい分量（URL3個以上または
+           400字以上）がある場合だけ状態を進める */
+        var proseText = String(text || "");
+        var looksLikeReport = (proseText.match(/https?:\/\//g) || []).length >= 3 || proseText.length >= 400;
+        if (looksLikeReport) {
+          var envWpProse = findWp(opts.wpHint);
+          if (envWpProse) { envWpProse.status = "done"; envWpProse.startedAt = 0; save(); renderWps(); }
+        }
+        showIngestResults([{ ok: looksLikeReport, level: looksLikeReport ? "ok" : "warn", wpId: opts.wpHint, label: looksLikeReport ? "これで正常です（このページでは取り込みません）" : "レポートとして短すぎます", detail: "このレポートを丸ごと最初のチャットへそのまま貼ってください。最初のチャットが行形式に変換します。出典URLがほとんど無い場合だけ、最初のチャットが「" + RESULT_TRIGGER + "」を案内します。" }]);
+      } else {
+        showIngestResults([{ ok: false, level: "warn", wpId: "", label: "Envelopeが読めませんでした", detail: "調査結果のレポートなら、このページではなく最初のチャットへそのまま貼ってください。最初のチャットの応答（調査プロンプトのEnvelope）を貼る場合は「【1/N】」の見出しとコードブロックを含めて丸ごと貼り付けてください。" }]);
+      }
+      /* 2026-09-03(バグ再修正・A14): 実際に貼り付けた入力欄だけを空にする。
+         opts.sourceElを無視してinputDispatchを常に空にすると、WPカードへ貼った
+         ときにパネル1の下書きが無関係に消えていた */
+      if (opts.sourceEl === inputDispatch) inputDispatch.value = "";
       return kind;
     }
-    showIngestResults([{ ok: false, level: "bad", wpId: opts.wpHint || "", label: "内容を判別できませんでした", detail: "最初のチャットが返した調査プロンプトの応答か、調査チャットに「一覧」と送って出てきた結果を貼り付けてください。完成したレポートは レポートビューア へ貼り付けてください。" }]);
+    showIngestResults([{ ok: false, level: "bad", wpId: opts.wpHint || "", label: "内容を判別できませんでした", detail: "最初のチャットが返した調査プロンプトの応答か、調査チャットに「" + RESULT_TRIGGER + "」と送って出てきた結果を貼り付けてください。完成したレポートは レポートビューア へ貼り付けてください。" }]);
     return kind;
   }
 

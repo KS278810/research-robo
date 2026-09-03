@@ -947,7 +947,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">チャット5つ前後・作業約20分<br>最初のチャットは容量の大きいAIで</span>
+            <span class="copy-choice-note">調査チャット1つ＋ビューア（広いテーマは自動で分割）・作業約20分<br>最初のチャットは容量の大きいAIで</span>
           </div>
         </div>
         <p class="copy-fallback" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
@@ -1027,7 +1027,7 @@ p { margin: 0; }
               <path d="M345,108 L355,108 L361,114 L361,132 L345,132 Z" fill="white" stroke="#bfe5e0" stroke-width="0.5"/>
               <path d="M355,108 L355,114 L361,114 Z" fill="#bfe5e0"/>
               <rect x="345" y="122" width="16" height="10" fill="#0f766e"/>
-              <text x="353" y="130" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">一覧</text>
+              <text x="353" y="130" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">レポート</text>
             </g>
             <g id="arf-a2" class="arf-gi">
               <rect x="212" y="150" width="160" height="40" rx="9" fill="#0d9488"/>
@@ -1039,7 +1039,7 @@ p { margin: 0; }
               <path d="M345,158 L355,158 L361,164 L361,182 L345,182 Z" fill="white" stroke="#bfe5e0" stroke-width="0.5"/>
               <path d="M355,158 L355,164 L361,164 Z" fill="#bfe5e0"/>
               <rect x="345" y="172" width="16" height="10" fill="#0f766e"/>
-              <text x="353" y="180" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">一覧</text>
+              <text x="353" y="180" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">レポート</text>
             </g>
             <g id="arf-a3" class="arf-gi">
               <rect x="212" y="200" width="160" height="40" rx="9" fill="#0d9488"/>
@@ -1051,7 +1051,7 @@ p { margin: 0; }
               <path d="M345,208 L355,208 L361,214 L361,232 L345,232 Z" fill="white" stroke="#bfe5e0" stroke-width="0.5"/>
               <path d="M355,208 L355,214 L361,214 Z" fill="#bfe5e0"/>
               <rect x="345" y="222" width="16" height="10" fill="#0f766e"/>
-              <text x="353" y="230" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">一覧</text>
+              <text x="353" y="230" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">レポート</text>
             </g>
 
             <g id="arf-fi" class="arf-gi">
@@ -1097,8 +1097,8 @@ p { margin: 0; }
           </div>
 
           <div class="arf-captions">
-            <div class="arf-caption"><span class="arf-caption-dot" style="background:#1d4ed8"></span>5項目と深さの確認だけ</div>
-            <div class="arf-caption"><span class="arf-caption-dot" style="background:#0d9488"></span>調査プロンプトを自動生成し並列実行</div>
+            <div class="arf-caption"><span class="arf-caption-dot" style="background:#1d4ed8"></span>7項目の確認だけ</div>
+            <div class="arf-caption"><span class="arf-caption-dot" style="background:#0d9488"></span>調査プロンプトを自動生成（広いテーマは分割）</div>
             <div class="arf-caption"><span class="arf-caption-dot" style="background:#1740b0"></span>出典の位置まで突き合わせて選別</div>
             <div class="arf-caption"><span class="arf-caption-dot" style="background:#0f2a43"></span>出典番号つきで構成、後足しなし</div>
           </div>
@@ -1158,23 +1158,23 @@ p { margin: 0; }
         <div class="howto-body reveal">
           <h3>1. コピーして、貼って、送信（共通）</h3>
           <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。調べたいテーマを聞かれるので、一文で答えます。</p>
-          <span class="howto-meta">手軽に試す＝作業約5分・Deep Research不要 ／ しっかり調べる＝作業約20分・4〜5回</span>
+          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約20分・Deep Research 1回〜（広いテーマ・検証追加で最大8回）</span>
         </div>
       </div>
       <div class="howto-item">
         <div class="howto-num"><img src="assets/images/mascot/mascot-point.webp" alt="指差しをするResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
-          <h3>2. 手軽に試す：「OK」→「次」だけ</h3>
-          <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは「次」と返信するだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼ると、その場でPDFにできます。</p>
+          <h3>2. 手軽に試す：「OK」→太字の言葉を返すだけ</h3>
+          <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは画面に太字で出る言葉（「次」「レポート」など）をそのまま返すだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼ると、その場でPDFにできます。</p>
         </div>
       </div>
       <div class="howto-item">
         <div class="howto-num"><img src="assets/images/mascot/mascot-report.webp" alt="レポートを掲げるResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>3. しっかり調べる：調査チャットで実行し、結果を戻す</h3>
-          <p><strong>確認する</strong>：目的・対象・期間の確認が出ます。「OK」と返すと調査プロンプトが届きます。<br>
-          <strong>開く</strong>：プロンプトを1本ずつ別の新しいチャットに貼り、Deep Researchで実行。<br>
-          <strong>渡す</strong>：終わったチャットに「一覧」と送り、出た結果を最初のチャットへ貼り戻します。<br>
+          <p><strong>確認する</strong>：目的・対象・本数を確認し「OK」。調査プロンプトが届きます。<br>
+          <strong>開く</strong>：プロンプトを新しいチャットに貼り、Deep Researchで実行。<br>
+          <strong>渡す</strong>：出てきたレポートを丸ごと最初のチャットへそのまま貼ります。<br>
           <strong>受け取る</strong>：レポートはコードブロックで分けて届きます。届くごとに「次」と返信。<br>
           <strong>仕上げ</strong>：届いた順に<a href="viewer.html">ビューア</a>へ貼ると結合・検証され、PDFで保存できます。</p>
           <p class="howto-note">最初のチャットはDeep Researchを使わないので、<a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>やGemini・Claudeなど容量の大きいものを使ってください（調査チャットは容量が小さくてもよく、ChatGPT無料版でも可）。</p>
@@ -1255,8 +1255,8 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:1">
         <summary>「手軽に試す」と「しっかり調べる」の違いは</summary>
-        <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
-        <p><strong>しっかり調べる</strong>は、調査を4〜5本に分けて別々のチャットで並行実行し、結果を集めて相互に突き合わせます。手順は増えますが、<strong>集まる資料が大きく増え</strong>、別チャットで集めた証拠を持ち主に見せずに検証する監査工程も入ります。作業約20分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
+        <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません（調査条件の確認で「Deep Researchを使う」に変えると、別チャットで実行するプロンプトが届きます）。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
+        <p><strong>しっかり調べる</strong>は、確認した調査条件から1本の調査プロンプトを作り、別のチャットのDeep Researchで実行します（対象が多い広いテーマでは自動で数本に分け、その理由を示します）。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります（必要な場合だけ別チャットで検証を追加します）。作業約20分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
         <p>どちらも同じビューアでPDFにでき、出典番号と参考文献リストが付きます。迷ったら「手軽に試す」から始めて、物足りなければ同じテーマで「しっかり調べる」を実行してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:2">
@@ -1270,15 +1270,15 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:3">
         <summary>個別の調査プロンプトを貼ると、指定の形式ではなくレポートや文書になります</summary>
-        <p>これは想定内の動作です（「しっかり調べる」で複数チャットに分けて調査する場合の話です）。多くのAIのDeep Researchは、指示してもレポート形式でしか返せない仕様になっています。その場合は、<strong>その同じ調査チャット（結果を出したチャット）に</strong>「一覧」と一言送ってください。直前の調査結果を規定の行形式（資料・主張・未確認事項の一覧）に変換して返すので、それを最初のチャットへ貼り戻します。レポート文のまま最初のチャットに貼っても自動変換はされません。変換は必ずその調査チャット自身に依頼してください。あわせて、Deep Research（サービスによっては「リサーチ」等の名称）モードがオンになっているかも確認してください。オフのままだと通常のチャット応答になり、Web調査自体が行われません。</p>
+        <p>これは想定内の動作です（多くのAIのDeep Researchはレポート形式で返すことがあります）。<strong>そのレポートを丸ごと最初のチャットへそのまま貼ってください。</strong>最初のチャットが資料・主張・未確認事項の一覧に変換して取り込みます。レポートに出典URLがほとんど無い場合だけ、最初のチャットが「調査チャットに『一覧』と送ってください」と案内します。あわせて、Deep Research（サービスによっては「リサーチ」等の名称）モードがオンになっているかも確認してください。オフのままだと通常のチャット応答になり、Web調査自体が行われません。</p>
       </details>
       <details class="faq-item reveal" style="--i:4">
         <summary>AIの応答が途中で止まってしまいました</summary>
         <p>「続けて統合を行います」のような文だけで応答が終わった場合は、「続けて」と一言送ってください。そのまま次の工程へ進みます。レポートが途中で切れた場合は、<a href="viewer.html">ビューア</a>が「PART 2 を出し直して」のように送る文を表示します。その文をそのまま最初のチャットへ送り、届いたコードブロックをビューアに貼り直してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:5">
-        <summary>なぜ複数のチャットを開く必要があるのですか</summary>
-        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。1つずつ順番に実行するより、複数チャットを同時に開いて並行実行するほうが総所要時間を短縮できます。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
+        <summary>なぜ調査は別のチャットで実行するのですか</summary>
+        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。広いテーマでは調査プロンプトが数本に分かれることがあり、その場合は同時に開いて並行実行すると待ち時間を短縮できます。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
       </details>
       <details class="faq-item reveal" style="--i:6">
         <summary>レポートはどうやってPDFにするのですか</summary>
@@ -1294,11 +1294,11 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:9">
         <summary>どれくらい時間がかかりますか</summary>
-        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約20分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間）が加わり、複数チャットで同時に走らせるので待ち時間はまとまりますが、テーマの規模によっては検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
+        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約20分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間・通常1回）が加わり、テーマの規模によっては分割や検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
       </details>
       <details class="faq-item reveal" style="--i:10">
         <summary>Deep Researchの利用回数は消費しますか</summary>
-        <p>はい。ResearchRobo自体はプロンプトであり、Deep Research機能の実行回数や利用枠は、使用しているAIサービス側の制限にそのまま従います。「手軽に試す」は消費しません。「しっかり調べる」は4〜5回消費します。無料プランは実行枠が少なく、1回の調査で足りなくなることがあります。その場合は、枠が回復してから残りのチャットを実行し、結果が出そろい次第まとめて貼り戻せば問題なく続けられます。結果が長くて分割出力になり「次」を送ったり、同じチャットに「追加抽出」を送ったりしても、それは同じチャット内の追加メッセージなので、Deep Researchの実行回数を追加で消費しません。</p>
+        <p>はい。ResearchRobo自体はプロンプトであり、Deep Research機能の実行回数や利用枠は、使用しているAIサービス側の制限にそのまま従います。「手軽に試す」は「Deep Research：使わない」のままなら消費しません。「しっかり調べる」は通常1回消費します（広いテーマの分割や検証の自動追加で2〜8回になることがあります）。無料プランは実行枠が少なく、1回の調査で足りなくなることがあります。その場合は、枠が回復してから残りのチャットを実行し、結果が出そろい次第まとめて貼り戻せば問題なく続けられます。結果が長くて分割出力になり「次」を送ったり、同じチャットに「追加抽出」を送ったりしても、それは同じチャット内の追加メッセージなので、Deep Researchの実行回数を追加で消費しません。</p>
       </details>
       <details class="faq-item reveal" style="--i:11">
         <summary>2回目以降の調査はもっと簡単にできますか</summary>
@@ -1340,7 +1340,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">チャット5つ前後・作業約20分<br>最初のチャットは容量の大きいAIで</span>
+            <span class="copy-choice-note">調査チャット1つ＋ビューア（広いテーマは自動で分割）・作業約20分<br>最初のチャットは容量の大きいAIで</span>
           </div>
         </div>
         <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
@@ -1521,9 +1521,12 @@ p { margin: 0; }
     /* 貼り付け時、ChatGPTは先頭が見える。末尾にも同じ案内を置き、
        どちらから読んでも「このまま送信すればよい」と伝わるようにする。
        テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。
-       末尾確認用の見出しはKIT別（フル版は# 0. Mode Router、ライト版は最終章の# 6.）——
-       共通の見出しで確認するとライト版が偽の容量エラーを出して自分自身を案内するループになる。 */
-    var tailHeading = isLite ? '# 6. うまくいかないときの対処' : '# 0. Mode Router';
+       末尾確認用の見出しはKIT別・各KIT本体の最後の章見出し（フル版は# 21.、ライト版は# 6.）——
+       共通の見出しで確認するとライト版が偽の容量エラーを出して自分自身を案内するループになる。
+       2026-09-03(完成前の最終洗い出し・C6): 旧フル版の見出しは# 0. Mode Routerで、これは
+       KIT冒頭付近（本体の40%未満の位置）にあるため、貼り付けが途中で切れていても検出
+       できなかった（末尾確認用のはずが末尾を確認していなかった）。最終章の見出しに直す。 */
+    var tailHeading = isLite ? '# 6. うまくいかないときの対処' : '# 21. 最重要ルールの再掲（末尾・省略不可）';
     return [
       '以下はResearch KIT本文。この手順書に従って動作すること。',
       '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',

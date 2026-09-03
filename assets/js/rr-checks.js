@@ -4,11 +4,20 @@
 (function () {
   "use strict";
 
-  var BANNED_WORDS = [
+  /* 両KIT共通の禁止語（full §19.3・lite §5.3の両方が列挙）。 */
+  var BANNED_WORDS_COMMON = [
     "再調査", "事実ベースレポート", "最終版", "改訂版", "Deep Research",
-    "WP", "Batch", "ready", "review", "excluded", "locked", "withheld",
     "ハルシネーション監査済み", "Research KIT"
   ];
+  /* full版のみ（§19.3）。お手軽版にはWorker概念自体が無いため、そのまま適用すると
+     「Health Worker」等の正当な英語で誤検出する（2026-09-03 バグ再修正・A5） */
+  var BANNED_WORDS_FULL = BANNED_WORDS_COMMON.concat(["WP", "Batch", "Worker", "ready", "review", "excluded", "locked", "withheld"]);
+  /* lite版のみ（§5.3「確認済み・保留・除外を見出しにしない」）。本文中の地の文（「保留した」等）
+     は正常な日本語なので、見出し（h2/h3）に出た場合だけ検出する */
+  var BANNED_WORDS_LITE = BANNED_WORDS_COMMON;
+  var BANNED_HEADING_WORDS_LITE = ["確認済み", "保留", "除外"];
+  /* 互換名: 呼び出し側の既存コードはBANNED_WORDSをfull版の意味で使う */
+  var BANNED_WORDS = BANNED_WORDS_FULL;
 
   /* source_typeの一次資料区分。v5.1は2文字コード（pr os ir gv ac pt）、v5.0以前のフルネームも受理 */
   var PRIMARY_TYPES = ["pr", "os", "ir", "gv", "ac", "pt",
@@ -99,14 +108,31 @@
     catch (e) { return null; }
   }
 
-  /* 本文テキストだけを取り出す（script/style/参考文献・付録・免責事項を除く）。禁止語スキャン用。 */
+  /* 本文テキストだけを取り出す（script/style/参考文献・付録・免責事項を除く）。禁止語スキャン用。
+     2026-09-03(バグ再修正・A6): textContentは要素境界に区切りを入れないため、
+     「</p><p>Worker が」のように前の要素の末尾がアルファベットで終わると
+     語境界(\b)が消えて誤検出／見逃しが起きる。ブロック要素の境界（</p><p>等）だけに
+     空白を入れる（<strong>禁止</strong>語のような同一段落内の隣接タグは対象外にし、
+     地の文の連結を壊さない） */
+  var RE_BLOCK_TAG = "p|div|li|h[1-6]|section|td|th|dd|dt|blockquote|ul|ol";
+  var RE_BLOCK_BOUNDARY = new RegExp("(</(?:" + RE_BLOCK_TAG + ")>)\\s*(<(?:" + RE_BLOCK_TAG + ")\\b)", "gi");
   function bodyTextForScan(html) {
-    var doc = parseDoc(html);
+    var normalized = String(html || "").replace(RE_BLOCK_BOUNDARY, "$1 $2");
+    var doc = parseDoc(normalized);
     if (doc && doc.body) {
       Array.prototype.forEach.call(doc.querySelectorAll("script, style, .references, .appendix, .disclaimer, #references, #apx-a, #apx-b"), function (el) { el.remove(); });
       return doc.body.textContent || "";
     }
-    return html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
+    return normalized.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
+  }
+
+  /* 禁止語検出用に h2/h3 の見出しテキストだけを結合したもの（lite版の確認済み/保留/除外用） */
+  function headingTextForScan(html) {
+    var doc = parseDoc(html);
+    if (doc && doc.body) {
+      return Array.prototype.map.call(doc.body.querySelectorAll("h2, h3"), function (el) { return el.textContent || ""; }).join(" ");
+    }
+    return "";
   }
 
   function runChecks(html, info) {
@@ -211,17 +237,27 @@
         : { title: citeTitle });
 
     // 3. 禁止語スキャン（script/style/参考文献を除いた本文テキスト。英語は語境界つき）
+    var isLiteReport = !!(info && info.isLite);
     var textOnly = bodyTextForScan(html);
-    var bannedHits = BANNED_WORDS.filter(function (w) {
+    var wordList = isLiteReport ? BANNED_WORDS_LITE : BANNED_WORDS_FULL;
+    var bannedHits = wordList.filter(function (w) {
       if (w === "WP") {
         // 「WP01」「WP 3」のような内部ID表記は拾い、「WP.29」「WP29」（UNECE規則名。2桁固定）のような正当な語は除く
         return /\bWP(?!\.?\d{2}\b)(?:\s?\d{1,2})?\b/.test(textOnly);
       }
       if (/^[A-Za-z ]+$/.test(w)) {
-        return new RegExp("\\b" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(textOnly);
+        /* 2026-09-03(7回目・初実走FB): 英単語として厳密一致すると「peer review」「ready to
+           use」のような正当な英語の地の文まで赤にする（実走で"review"が誤検出された）。
+           Workerだけに適用していた日本語・数字隣接ルールを全ASCII内部語へ揃える */
+        var esc = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(esc + "(?=[^\\x00-\\x7F\\s])|(?<=[^\\x00-\\x7F])" + esc + "|\\b" + esc + "\\s?\\d").test(textOnly);
       }
       return textOnly.indexOf(w) !== -1;
     });
+    if (isLiteReport) {
+      var headingText = headingTextForScan(html);
+      bannedHits = bannedHits.concat(BANNED_HEADING_WORDS_LITE.filter(function (w) { return headingText.indexOf(w) !== -1; }));
+    }
     addResult(results, bannedHits.length === 0,
       "内部用語・禁止語が本文に含まれていない",
       bannedHits.length ? "検出: " + bannedHits.join(", ") + "（出典名など正当な語の場合は無視して構いません）" : "",
@@ -404,26 +440,45 @@
      結果一覧を貼った場合、末尾の RESULT_COMPLETE: {wp_id} からWP識別子を拾っておく
      （本文の資料ID解決に使う。full版の集約後ID（C-2-07等）とは別物のため、
      解決できない場合はそのまま「未確定」として台帳に残すだけで機能は止めない） */
-  /* dispatch.html の normLines と受理範囲を揃える: 全角｜→半角、全角数字→半角、
-     Markdown表のように行頭にも|がある形（`| S1 | pr | … |`）は対で剥がす（末尾だけの
-     |は抜粋欄などの空欄の区切りとして残す。行頭に|が無ければ剥がさない）。
-     揃えていないと、同じ結果一覧をdispatchでは受理できてもviewerでは「断片です」に
-     なる、といった食い違いが起きる */
+  /* dispatch.html の normLines と同一実装（2026-09-03 完成前の最終洗い出し・A2で統合。
+     以前は別実装で、箇条書き・番号付き・太字・セル区切りをdispatchだけが剥がしていた
+     ため、同じ結果一覧をdispatchは受理してもviewerは「断片です」と誤判定していた） */
   function normResultListLine(line) {
     var t = String(line == null ? "" : line).replace(/｜/g, "|").trim();
     t = toHalfDigits(t);
     var hadLeadingPipe = /^\|/.test(t);
     t = t.replace(/^\|\s*/, "");
     if (hadLeadingPipe) t = t.replace(/\s*\|$/, "");
+    t = t.replace(/^-\s+/, "").replace(/^\d+\.\s+/, "");
+    t = t.replace(/^\*\*/, "").replace(/\*\*$/, "");
+    t = t.trim().replace(/\s*\|\s*/g, "|");
     return t;
   }
 
   function parseResultList(raw) {
-    var lines = String(raw || "").replace(/﻿/g, "").split(/\r?\n/);
+    var rawStr = String(raw || "").replace(/﻿/g, "");
+    var lines = rawStr.split(/\r?\n/);
     var sources = {}, claims = [], unconfirmed = [], receipt = "", wp = "";
+    /* 2026-09-03(完成前の最終洗い出し・F5): §7.3の変換結果が60行超で分割されると、
+       途中のブロックは`RESULT_COMPLETE`ではなく先頭行`RR-RESULT | … | WP_ID: WP1 | …`
+       と末尾`RESULT_PART: {wp} k/n`だけを持つ。従来はwpの手がかりがRESULT_COMPLETE
+       行だけだったため、分割ブロックではwp=""のままcanon IDがC-1相当に落ち、
+       付録CのID・資料番号が食い違っていた（実走で確認済みの一覧との不一致と同型）。
+       ヘッダ行から先に読み、RESULT_COMPLETE/RESULT_PARTがあれば後で上書きする */
+    /* 2026-09-03(バグ再修正・A1): ヘッダ検出は正規化前のrawStrに対して行っていたため、
+       太字・箇条書き・表形式（| RR-RESULT | … |）で装飾されるとWP_IDが読めなかった。
+       他の行と同じくnormResultListLine適用後の行に対して読む */
+    var normAll = lines.map(normResultListLine).join("\n");
+    var mHead = normAll.match(/^\s*RR-RESULT\b[^\n]*WP_ID\s*[:：]\s*([A-Za-z0-9_-]+)/mi);
+    if (mHead) {
+      var wpHeadRaw = mHead[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
+      wp = /^\d+$/.test(wpHeadRaw) ? String(parseInt(wpHeadRaw, 10)) : wpHeadRaw;
+    }
     lines.forEach(function (line) {
       var t = normResultListLine(line);
       if (!t) return;
+      if (/^(```|~~~)/.test(t)) return;
+      if (/^:?-{2,}:?(\|:?-{2,}:?)+$/.test(t)) return;
       var mS = t.match(/^S(\d+)\|(.*)$/);
       if (mS) {
         var sf = mS[2].split("|");
@@ -457,6 +512,13 @@
         wp = /^\d+$/.test(wpRaw) ? String(parseInt(wpRaw, 10)) : wpRaw;
         return;
       }
+      /* 分割ブロック(k<n)の末尾行。RESULT_COMPLETEが無い代わりにこれがwp源になる */
+      var mPart = t.match(/^RESULT_PART\s*[:：]\s*(\S+?)\s+\d+\s*\/\s*\d+/i);
+      if (mPart) {
+        var wpPartRaw = mPart[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
+        wp = /^\d+$/.test(wpPartRaw) ? String(parseInt(wpPartRaw, 10)) : wpPartRaw;
+        return;
+      }
     });
     return { sources: sources, claims: claims, unconfirmed: unconfirmed, receipt: receipt, wp: wp,
              claimCount: claims.length, sourceCount: Object.keys(sources).length };
@@ -485,6 +547,30 @@
      doc/htmlは展開・自動修復・再採番まで済んだ最終文書（本文の引用状態・参考文献番号を
      読むため）。refMapはrenumberRefs().map（AIが書いた資料ID→表示上の参考文献番号）。
      blocks は parseResultList() の返り値の配列（複数ブロックの貼付・60行分割に対応） */
+  /* 2026-09-03(完成前の最終洗い出し・C8): オーナーの質問「引用先にエビデンスが乏しいものは
+     検出できるか」への改善レバー。KIT本文の追加無しで、既に収集済みのS行type/date・C行
+     excerptの有無だけから付録Cの各行にA〜Dの等級を機械算出する（新規解析は不要）。
+     本文への印付けは今回入れない（実走後に検討。DECISIONS.md参照）。
+     A＝一次資料(gv/pr/ir/os/ac/pt)かつ抜粋あり
+     B＝一次資料だが抜粋なし、または二次資料(n1)で抜粋あり
+     C＝二次資料(n2/ag)のみで抜粋あり
+     D＝抜粋なしの二次資料、または発行日不明
+     同じ主張を複数資料が支える場合はKIT側でC行そのものを分ける設計（§行動規則4）のため、
+     台帳側でも資料ごとに別行になり、行をまたいだ等級の合成は不要 */
+  function evidenceGrade(src, excerpt) {
+    var hasExcerpt = !!(excerpt && String(excerpt).trim());
+    if (!src) return "D";
+    var dateUnknown = !src.date || !String(src.date).trim() || /不明|なし|N\/?A/i.test(src.date);
+    if (dateUnknown) return "D";
+    var type = String(src.type || "").trim().toLowerCase();
+    var isPrimary = PRIMARY_TYPES.indexOf(type) !== -1;
+    var isN1 = type === "n1";
+    if (isPrimary) return hasExcerpt ? "A" : "B";
+    if (isN1 && hasExcerpt) return "B";
+    if (hasExcerpt) return "C";
+    return "D";
+  }
+
   function buildLedgerHtml(doc, html, blocks, refMap) {
     if (!blocks || !blocks.length) return null;
     var cited = citedClaimSet(doc);
@@ -492,24 +578,59 @@
     parseUncited(html).entries.forEach(function (e) { uncitedReason[e.id] = e.reason || ""; });
     var fullStyleId = /data-claim="[^"]*C-\d+-\d+/.test(html);
     var rows = [];
-    var seen = {};
+    /* 2026-09-03(完成前の最終洗い出し・C1): refMapのキーは本文に書かれた資料IDそのまま
+       （0詰めが揺れうる）。素の突合で見つからない場合だけ、0詰めを剥がした
+       canonId基準でも引けるようにする（既存の完全一致優先は変えない） */
+    var canonRefMap = {};
+    if (refMap) { Object.keys(refMap).forEach(function (k) { canonRefMap[canonId(k)] = refMap[k]; }); }
+    /* 2026-09-03(バグ再修正・A4): 60行分割ではS行が最初のブロックにしか無いため、
+       ブロック単位でsourcesを引くと2ブロック目以降は資料が引けず等級が常にDになる。
+       同じwpのブロックを横断してS行をマージしてから引く */
+    var sourcesByWp = {};
     blocks.forEach(function (b) {
+      var key = b.wp || "";
+      sourcesByWp[key] = sourcesByWp[key] || {};
+      Object.keys(b.sources || {}).forEach(function (k) {
+        if (!(k in sourcesByWp[key])) sourcesByWp[key][k] = b.sources[k];
+      });
+    });
+    /* 2026-09-03(バグ再修正・A3): 同じ結果一覧の2回貼りは重複排除するが、§8.3が想定する
+       「PART 2以降でC番号が1から再開する」場合は別ブロック＝別内容なので、捨てずに
+       末尾英字（C-1-1b）で区別する。ブロック単位で先に完全再貼付だけを弾く */
+    var blockSeen = {};
+    var survivingBlocks = blocks.filter(function (b) {
+      if (!b.receipt) return true;
+      var sig = (b.wp || "") + "|" + b.receipt + "|" + (b.claims || []).length;
+      if (blockSeen[sig]) return false;
+      blockSeen[sig] = true;
+      return true;
+    });
+    var seenBy = {};
+    survivingBlocks.forEach(function (b, bi) {
       (b.claims || []).forEach(function (c) {
         var canon = ledgerClaimId(b, c);
-        /* 同じ結果一覧を2回貼った・60行分割で重なって貼られた場合の重複排除。
-           先に出てきた行を残す（実走で確認: 同一リスト2回貼付で台帳が二重化した） */
-        if (seen[canon]) return;
-        seen[canon] = true;
+        if (seenBy.hasOwnProperty(canon)) {
+          if (seenBy[canon] === bi) return; // 同一ブロック内の再掲は従来どおり無視
+          var suffix = "b";
+          while (seenBy.hasOwnProperty(canon + suffix)) suffix = String.fromCharCode(suffix.charCodeAt(0) + 1);
+          canon = canon + suffix;
+        }
+        seenBy[canon] = bi;
         var status = "一覧のみ";
         if (cited[canon]) status = "本文で引用";
         else if (uncitedReason[canon] !== undefined) status = "本文未引用（" + (uncitedReason[canon] || "理由記載") + "）";
         /* WPが判っている場合はWP修飾キーを先に引く（裸のsNumが別WPの資料と衝突する
            ことがあるため） */
         var refKey = b.wp ? (b.wp + "-" + c.sNum) : c.sNum;
-        var refNum = (refMap && (b.wp ? (refMap[refKey] || refMap[c.sNum]) : refMap[c.sNum])) || "";
-        var src = (b.sources || {})[c.sNum];
+        var refNum = (refMap && (b.wp ? (refMap[refKey] || refMap[c.sNum]) : refMap[c.sNum])) ||
+          (canonRefMap[canonId(refKey)] || canonRefMap[canonId(c.sNum)]) || "";
+        var src = (sourcesByWp[b.wp || ""] || {})[c.sNum];
         var srcLabel = src ? [src.publisher, src.title ? "「" + src.title + "」" : ""].filter(Boolean).join("") : "";
-        rows.push({ id: "C-" + c.cNum, claim: c.claim, sNum: c.sNum, refNum: refNum, srcLabel: srcLabel, excerpt: c.excerpt, status: status });
+        /* 表示IDはledgerClaimId()の結果（WP付き）を使う。従来は"C-"+cNumのままだったため、
+           full版でも台帳のID列が本文の C-2-07 と食い違い（一覧のみ判定は正しいのに表示だけ
+           C-7 のまま）実走で混乱を招いた（2026-09-03 監査で発見） */
+        var grade = evidenceGrade(src, c.excerpt);
+        rows.push({ id: canon, claim: c.claim, sNum: c.sNum, refNum: refNum, srcLabel: srcLabel, excerpt: c.excerpt, status: status, grade: grade });
       });
     });
     if (!rows.length) return null;
@@ -517,12 +638,14 @@
       var srcCell = r.refNum ? "[" + escText(r.refNum) + "]" : "S" + escText(r.sNum) + (r.srcLabel ? "（" + escText(r.srcLabel) + "）" : "");
       return "<tr><td>" + escText(r.id) + "</td><td>" + escText(r.claim) + "</td>" +
         "<td>" + srcCell + "</td>" +
-        "<td>" + escText(r.excerpt) + "</td><td>" + escText(r.status) + "</td></tr>";
+        "<td>" + escText(r.excerpt) + "</td><td>" + escText(r.status) + "</td>" +
+        '<td class="rr-grade rr-grade-' + escText(r.grade) + '">' + escText(r.grade) + "</td></tr>";
     }).join("");
     var note = fullStyleId
       ? '<p class="note">主張IDがWPをまたぐ形式のため、資料・掲載状況の自動判定は一部の主張でのみ有効です。</p>' : "";
-    var html2 = '<section class="appendix ledger" id="apx-c"><h2>付録C　主張台帳</h2>' + note +
-      '<table><thead><tr><th>ID</th><th>主張</th><th>資料</th><th>原文抜粋</th><th>掲載</th></tr></thead>' +
+    var gradeNote = '<p class="note">根拠の等級（機械判定の目安）: A＝一次資料・抜粋あり／B＝一次資料（抜粋なし）または直接取材の二次資料・抜粋あり／C＝その他の二次資料・抜粋あり／D＝抜粋なし、または発行日不明。</p>';
+    var html2 = '<section class="appendix ledger" id="apx-c"><h2>付録C　主張台帳</h2>' + note + gradeNote +
+      '<table><thead><tr><th>ID</th><th>主張</th><th>資料</th><th>原文抜粋</th><th>掲載</th><th>根拠</th></tr></thead>' +
       "<tbody>" + trs + "</tbody></table></section>";
     return { html: html2, rowCount: rows.length };
   }
@@ -959,6 +1082,10 @@
       var t = lines[i].trim();
       if (!t) continue;
       if (/^```/.test(t)) return lines.slice(0, i).join("\n");
+      /* 2026-09-03(完成前の最終洗い出し・C2): R|で始まる参考文献行は日本語のタイトルを
+         含むため、RE_JP_TEXT_LINEに引っかかって「地の文」と誤判定され、RR-ENDが無い
+         参考文献のみのPARTがまるごと切り落とされていた。R|行はここでは無視する */
+      if (/^[ \t　]*R\|/.test(t)) continue;
       if (t.charAt(0) !== "<" && RE_JP_TEXT_LINE.test(t)) return lines.slice(0, i).join("\n");
     }
     return body;
@@ -1215,6 +1342,10 @@
     s = replaceUnmasked(s, maskRegionsAndTags(s), RE_COMPACT_CITE, function (all, inner) {
       var items = inner.split(";");
       var as = [], left = [];
+      /* 2026-09-03(7回目・初実走FB): 同じ資料IDが1つの[[…]]内で繰り返される
+         （例: [[1|C-1;2|C-2;2|C-3]]）と、実走のPDFで"[1][2][2]"のような連続番号に
+         なった。同じridは<a>を増やさず既存アンカーのdata-claimへトークンを連結する */
+      var byRid = {};
       for (var i = 0; i < items.length; i++) {
         var f = items[i].split("|");
         var rid = (f[0] || "").trim();
@@ -1224,11 +1355,21 @@
            元の記法のまま残す（チェック19が知らせる） */
         if (!/^[0-9A-Za-z][0-9A-Za-z-]*$/.test(rid)) { left.push(items[i]); continue; }
         rid = canonId(rid);
-        as.push('<a href="#ref-' + rid + '"' + (claim ? ' data-claim="' + escText(claim) + '"' : "") + ">[" + rid + "]</a>");
+        if (byRid[rid]) {
+          if (claim) byRid[rid].claims.push(claim);
+        } else {
+          var entry = { claims: claim ? [claim] : [] };
+          byRid[rid] = entry;
+          as.push({ rid: rid, entry: entry });
+        }
       }
       if (!as.length) return all;
       out.cites += as.length;
-      return "<sup>" + as.join("") + "</sup>" + (left.length ? "[[" + left.join(";") + "]]" : "");
+      var anchors = as.map(function (a) {
+        var claimAttr = a.entry.claims.length ? ' data-claim="' + escText(a.entry.claims.join(" ")) + '"' : "";
+        return '<a href="#ref-' + a.rid + '"' + claimAttr + ">[" + a.rid + "]</a>";
+      });
+      return "<sup>" + anchors.join("") + "</sup>" + (left.length ? "[[" + left.join(";") + "]]" : "");
     });
 
     /* 付録A（参照資料一覧）の中で R| が使われた場合は id を付けない。
@@ -1390,16 +1531,40 @@
       var li = doc.getElementById("ref-" + m.from);
       if (li && li.parentNode) li.parentNode.removeChild(li);
     });
-    /* 統合の結果、1つの<sup>内に同じ参考文献への引用が並んだ場合は1つに畳む */
-    if (out.merged.length) {
-      Array.prototype.forEach.call(doc.querySelectorAll("sup"), function (sup) {
-        var seen = {};
-        Array.prototype.slice.call(sup.querySelectorAll('a[href^="#ref-"]')).forEach(function (a) {
-          var h = a.getAttribute("href");
-          if (seen[h]) { if (a.parentNode) a.parentNode.removeChild(a); } else seen[h] = true;
-        });
-      });
+    /* 統合の結果、1つの<sup>内に同じ参考文献への引用が並んだ場合は1つに畳む。
+       2026-09-03(7回目・初実走FB): 従来はMERGEが起きた場合だけ実行していたが、
+       実走のPDFで"[1][1]"（隣接する別の<sup>グループが同じ資料IDを引く）が見つかった
+       ため、MERGE有無にかかわらず常時実行し、隣接する<sup>同士の重複も畳む */
+    /* 2026-09-03(バグ修正): 同じ資料への引用でも、担当するClaimが違えば重複ではない
+       （1つの資料を多数のClaimが根拠にするのは正常）。href単独ではなくhref+data-claim
+       の組で同一性を見る（キーはtrim・大文字小文字を区別。data-claim無しは常に個別扱い） */
+    function citeDedupeKey(a) {
+      var claim = a.getAttribute("data-claim");
+      return a.getAttribute("href") + "|" + (claim ? claim.trim() : "");
     }
+    Array.prototype.forEach.call(doc.querySelectorAll("sup"), function (sup) {
+      var seen = {};
+      Array.prototype.slice.call(sup.querySelectorAll('a[href^="#ref-"]')).forEach(function (a) {
+        var k = citeDedupeKey(a);
+        if (seen[k]) { if (a.parentNode) a.parentNode.removeChild(a); out.dedup.push(k); } else seen[k] = true;
+      });
+    });
+    /* 隣接する<sup>同士（間に空白以外の文字が無いもの）も同じ資料ID・同じClaimへの
+       引用が重複していれば畳む。空になった<sup>は取り除く。
+       out.dedupへ記録しないと末尾の「changedフラグが1つも立っていなければ
+       再シリアライズしない」ガードに引っかかり、このDOM変更が最終htmlに反映されない */
+    Array.prototype.forEach.call(doc.querySelectorAll("sup"), function (sup) {
+      var next = sup.nextSibling;
+      while (next && next.nodeType === 3 && !/\S/.test(next.textContent || "")) next = next.nextSibling;
+      if (!next || next.nodeType !== 1 || next.tagName !== "SUP") return;
+      var seen = {};
+      Array.prototype.slice.call(sup.querySelectorAll('a[href^="#ref-"]')).forEach(function (a) { seen[citeDedupeKey(a)] = true; });
+      Array.prototype.slice.call(next.querySelectorAll('a[href^="#ref-"]')).forEach(function (a) {
+        var k = citeDedupeKey(a);
+        if (seen[k]) { if (a.parentNode) a.parentNode.removeChild(a); out.dedup.push(k); } else seen[k] = true;
+      });
+      if (!next.querySelector('a[href^="#ref-"]') && next.parentNode) next.parentNode.removeChild(next);
+    });
 
     /* R2. 本文で1度も引用されていない参考文献を付録A（参照資料一覧）へ移す。
        「引用が存在するか」ではなく「引用先IDが参考文献に解決するか」を見る。
@@ -1435,6 +1600,19 @@
         apxOl.appendChild(doc.createTextNode("\n"));
         apxOl.appendChild(li);
       });
+    }
+    /* 2026-09-03(7回目・初実走FB): 閲覧のみ0件の調査では付録Aが空の<ol>のまま残り、
+       見出しだけの白紙ページになる（実走で確認）。KIT §19.2項目8・9と同じ
+       「該当なし」1行を機械側でも補う（AIが省略しても壊れないように） */
+    /* moveSkippedがある場合は判定自体を信用していない状態なので、
+       apxOlが空でも「該当なし」を書かない（検出失敗を「0件確定」と混同しない） */
+    if (apxOl && !out.moveSkipped && !apxOl.querySelector("li")) {
+      var noneLi = doc.createElement("li");
+      noneLi.className = "none";
+      noneLi.textContent = "該当なし";
+      apxOl.appendChild(doc.createTextNode("\n"));
+      apxOl.appendChild(noneLi);
+      out.dedup.push("apx-a-none");
     }
 
     /* R3. 許可外のタグを削除し、style／onclick属性を外す（要素自体と文章は残す） */
@@ -1660,9 +1838,13 @@
       "</div>";
   }
   function coverStatsHtml(st) {
+    /* 2026-09-03(7回目・初実走FB): 閲覧のみ0件だとconsultedCount===refCountになり、
+       「参考文献」「参照資料」に同じ数字が並んで冗長だった（実走で確認）。
+       閲覧のみが無いときはこのタイルを省く */
+    var consultedTile = st.appendixCount > 0 ? statTile(st.consultedCount, "参照資料") : "";
     return '<div class="stat-row">' +
       statTile(st.refCount, "参考文献") +
-      statTile(st.consultedCount, "参照資料") +
+      consultedTile +
       statTile(st.publisherCount, "独立発行元（推定）") +
       statTile(st.primaryRatio, "一次資料比率") +
       statTile(st.claimCount, "確認事実") +
@@ -2177,6 +2359,9 @@
 
   var RRChecks = {
     BANNED_WORDS: BANNED_WORDS,
+    BANNED_WORDS_FULL: BANNED_WORDS_FULL,
+    BANNED_WORDS_LITE: BANNED_WORDS_LITE,
+    BANNED_HEADING_WORDS_LITE: BANNED_HEADING_WORDS_LITE,
     parsePlan: parsePlan,
     sortIds: sortIds,
     PRIMARY_TYPES: PRIMARY_TYPES,
@@ -2188,6 +2373,7 @@
     digitsOf: digitsOf,
     dateKeys: dateKeys,
     toHalfDigits: toHalfDigits,
+    normResultListLine: normResultListLine,
     MULTI_TLD: MULTI_TLD,
     domainOf: domainOf,
     etld1: etld1,

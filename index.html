@@ -947,7 +947,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット1つ＋ビューア（広いテーマは自動で分割）・作業約20分<br>最初のチャットは容量の大きいAIで</span>
+            <span class="copy-choice-note">調査チャット1つ＋ビューア・作業約10分<br>（広いテーマは自動分割／容量の大きいAIで）</span>
           </div>
         </div>
         <p class="copy-fallback" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
@@ -1097,8 +1097,8 @@ p { margin: 0; }
           </div>
 
           <div class="arf-captions">
-            <div class="arf-caption"><span class="arf-caption-dot" style="background:#1d4ed8"></span>7項目の確認だけ</div>
-            <div class="arf-caption"><span class="arf-caption-dot" style="background:#0d9488"></span>調査プロンプトを自動生成（広いテーマは分割）</div>
+            <div class="arf-caption"><span class="arf-caption-dot" style="background:#1d4ed8"></span>調査条件を確認するだけ</div>
+            <div class="arf-caption"><span class="arf-caption-dot" style="background:#0d9488"></span>調査プロンプトを自動生成</div>
             <div class="arf-caption"><span class="arf-caption-dot" style="background:#1740b0"></span>出典の位置まで突き合わせて選別</div>
             <div class="arf-caption"><span class="arf-caption-dot" style="background:#0f2a43"></span>出典番号つきで構成、後足しなし</div>
           </div>
@@ -1158,7 +1158,7 @@ p { margin: 0; }
         <div class="howto-body reveal">
           <h3>1. コピーして、貼って、送信（共通）</h3>
           <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。調べたいテーマを聞かれるので、一文で答えます。</p>
-          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約20分・Deep Research 1回〜（広いテーマ・検証追加で最大8回）</span>
+          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約10分・Deep Research 1回〜（広いテーマ・検証追加で最大8回）</span>
         </div>
       </div>
       <div class="howto-item">
@@ -1256,7 +1256,7 @@ p { margin: 0; }
       <details class="faq-item reveal" style="--i:1">
         <summary>「手軽に試す」と「しっかり調べる」の違いは</summary>
         <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません（調査条件の確認で「Deep Researchを使う」に変えると、別チャットで実行するプロンプトが届きます）。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
-        <p><strong>しっかり調べる</strong>は、確認した調査条件から1本の調査プロンプトを作り、別のチャットのDeep Researchで実行します（対象が多い広いテーマでは自動で数本に分け、その理由を示します）。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります（必要な場合だけ別チャットで検証を追加します）。作業約20分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
+        <p><strong>しっかり調べる</strong>は、確認した調査条件から1本の調査プロンプトを作り、別のチャットのDeep Researchで実行します（対象が多い広いテーマでは自動で数本に分け、その理由を示します）。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります（必要な場合だけ別チャットで検証を追加します）。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
         <p>どちらも同じビューアでPDFにでき、出典番号と参考文献リストが付きます。迷ったら「手軽に試す」から始めて、物足りなければ同じテーマで「しっかり調べる」を実行してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:2">
@@ -1294,7 +1294,7 @@ p { margin: 0; }
       </details>
       <details class="faq-item reveal" style="--i:9">
         <summary>どれくらい時間がかかりますか</summary>
-        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約20分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間・通常1回）が加わり、テーマの規模によっては分割や検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
+        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約10分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間・通常1回）が加わり、テーマの規模によっては分割や検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
       </details>
       <details class="faq-item reveal" style="--i:10">
         <summary>Deep Researchの利用回数は消費しますか</summary>
@@ -1340,7 +1340,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット1つ＋ビューア（広いテーマは自動で分割）・作業約20分<br>最初のチャットは容量の大きいAIで</span>
+            <span class="copy-choice-note">調査チャット1つ＋ビューア・作業約10分<br>（広いテーマは自動分割／容量の大きいAIで）</span>
           </div>
         </div>
         <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>

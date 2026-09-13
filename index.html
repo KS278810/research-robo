@@ -1484,6 +1484,16 @@ p { margin: 0; }
       clearTimeout(timer);
       if (!r.ok) throw new Error('fetch failed: ' + r.status);
       return r.text();
+    }).then(function (t) {
+      /* 2026-09-04(第4回徹底監査・MEDIUM-14): 200 OKで応答が返っても、社内プロキシ・
+         captive portal等がログインページ等のHTMLを200で返すことがある（社内配信環境
+         で起こりやすい事故）。中身がKIT本文であることを軽く検査してから成功扱いにする。
+         buildFullPromptTextが末尾確認に使う見出し（# 21. / # 6.）と同じものを流用する */
+      var tailNeedle = (file === KIT_LITE) ? '# 6. うまくいかないときの対処' : '# 21. 最重要ルールの再掲（末尾・省略不可）';
+      var looksLikeKit = typeof t === 'string' && t.length > 10000 &&
+        t.indexOf('# Research KIT') === 0 && t.indexOf(tailNeedle) >= 0;
+      if (!looksLikeKit) throw new Error('unexpected content (not a KIT file)');
+      return t;
     });
     kitTextPromise[file] = withTimeout(chain, KIT_FETCH_TIMEOUT).then(function (t) {
       kitTextCache[file] = t;

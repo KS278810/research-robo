@@ -29,7 +29,7 @@ Geminiは長文の貼り付けが不安定な場合があります。その場�
 | [`viewer.html`](./viewer.html) | 標準フローのレポートビューア。届いたコードブロックを順に貼ると結合して整え、機械的に直せる不備（重複した参考文献の統合・未引用資料の付録Aへの移動・許可外のタグ／リンクの除去）は自動修復し、残る不備だけを表示してプレビュー・PDF保存ができる。従来の完成HTMLもそのまま検証できる（ブラウザ内完結、送信なし） |
 | [`dispatch.html`](./dispatch.html) | 調査ワークベンチ（任意ツール。標準フローでは不要）。調査プロンプトの実行管理（コピー・状態・経過時間）と、Worker結果の件数事前確認（ブラウザ内完結、送信なし） |
 | [`assets/js/rr-checks.js`](./assets/js/rr-checks.js) | `viewer.html`と`dispatch.html`が共有する純関数モジュール（入力正規化・PART結合・自動修復・参考文献の採番・集計トークン置換・機械検査・禁止語リストなど） |
-| [`assets/js/rr-report-css.js`](./assets/js/rr-report-css.js) | レポート書式CSS（`viewer.html`と`dispatch.html`が共有。CSSを含まないv5.2レポートに挿入する） |
+| [`assets/js/rr-report-css.js`](./assets/js/rr-report-css.js) | レポート書式CSS（`viewer.html`が読み込み、CSSを含まないv5.2レポートに挿入する） |
 | [`benchmark-report-sample.pdf`](./benchmark-report-sample.pdf) | Research KITで実際に作成した調査レポートの実例（自動車13社の衝突安全ベンチマーク、公開資料122件・確認事実319件）。公開版のため企業名はA社〜M社にマスキングしています |
 | [`REPORT_STYLE_SYNTHETIC.pdf`](./REPORT_STYLE_SYNTHETIC.pdf) | レポートのレイアウト見本（架空データ）。調査情報源として使用しないでください |
 
@@ -52,7 +52,7 @@ Research KITは出典突き合わせの監査工程を内蔵していますが�
 
 ## 開発者向けメモ（配布運用）
 
-ユーザー配布時の標準ファイルは上記表の8種類（`_latest.md`は同一内容の複製なので数に含めない）（`RESEARCH_KIT_vX.X.md` / `RESEARCH_KIT_lite_vX.X.md` / `viewer.html` / `dispatch.html` / `assets/js/rr-checks.js` / `assets/js/rr-report-css.js` / `benchmark-report-sample.pdf` / `REPORT_STYLE_SYNTHETIC.pdf`）のみとする。`rr-checks.js`・`rr-report-css.js`は`viewer.html`・`dispatch.html`の実装詳細であり、単独では意味を持たない（`<script src="assets/js/…">`でsame-origin読み込みされる前提。file://でも動作する）。
+ユーザー配布時の標準ファイルは上記表の8種類（`_latest.md`は同一内容の複製なので数に含めない）（`RESEARCH_KIT_vX.X.md` / `RESEARCH_KIT_lite_vX.X.md` / `viewer.html` / `dispatch.html` / `assets/js/rr-checks.js` / `assets/js/rr-report-css.js` / `benchmark-report-sample.pdf` / `REPORT_STYLE_SYNTHETIC.pdf`）のみとする。`rr-checks.js`は`viewer.html`・`dispatch.html`の、`rr-report-css.js`は`viewer.html`の実装詳細であり、単独では意味を持たない（`<script src="assets/js/…">`でsame-origin読み込みされる前提。file://でも動作する）。
 
 - 非ChatGPT環境向けの添付は`RESEARCH_KIT_vX.X.md`単体をそのまま使う。ZIP等のアーカイブ形式では配布しない（バイナリを展開できず解読不能と返すAIが実地で確認されている。2026-08）。添付は平文で読める単一ファイルを優先する。
 - LPのコピーボタンは、同一オリジンの`RESEARCH_KIT_latest.md`（フル版）／`RESEARCH_KIT_lite_latest.md`（ライト版）（バージョン番号を含まない配布サイト常設ファイル）をJSで取得しプロンプトへ埋め込む。中身は`RESEARCH_KIT_vX.X.md`とバイト一致に保つこと。バージョン番号入りのURLをAI自身に取得させる方式は、検索エンジンの未インデックスにより取得失敗が発生することが実地確認されたため廃止した（2026-08）。

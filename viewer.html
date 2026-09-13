@@ -218,6 +218,21 @@ footer.site-footer a { color: var(--color-mute); }
   .actions { flex-direction: column; }
   .btn { justify-content: center; }
 }
+
+/* 2026-09-04(第4回徹底監査・MEDIUM-16): Ctrl+P/⌘+Pでこのページ自体を印刷すると、
+   ヘッダー・検査結果・プレビューiframe枠（70vhで途中クリップ）がそのまま印刷されて
+   しまう。保存は必ず「PDFとして保存」ボタン（プレビューiframe内で contentWindow.print()
+   を呼ぶ）から行うべきなので、ページ全体の印刷ではUIを隠し案内だけを出す */
+@media print {
+  body > * { display: none !important; }
+  body::before {
+    content: "保存は「PDFとして保存」ボタンから行ってください（このページ自体の印刷では正しく出力できません）。";
+    display: block;
+    padding: 2rem;
+    font-size: 1.1rem;
+    font-family: var(--font-body);
+  }
+}
 </style>
 </head>
 <body>
@@ -672,11 +687,17 @@ footer.site-footer a { color: var(--color-mute); }
      （追記していくと、同じ状態で2回描画したときに案内が二重になる） */
   var eventNotice = "";
 
+  /* 2026-09-04(第4回徹底監査・MEDIUM-15): 保存失敗（容量超過等）が無言だった。
+     rlStoreWarning（結果一覧側）と同じパターンで、保存に失敗したことを状態表示に出す */
+  var partStoreWarning = "";
   function persistStore() {
     try {
       if (partStore.n || Object.keys(partStore.parts).length) sessionStorage.setItem(STORE_KEY, JSON.stringify(partStore));
       else sessionStorage.removeItem(STORE_KEY);
-    } catch (e) { /* 保存できない環境では保持しないだけ */ }
+      partStoreWarning = "";
+    } catch (e) {
+      partStoreWarning = "貼り付けたPARTの保存に失敗しました。このタブを閉じると再読み込み時に消えます。";
+    }
   }
   function restoreStore() {
     try {
@@ -742,6 +763,7 @@ footer.site-footer a { color: var(--color-mute); }
     if (replaced && replaced.length) lines.push("PART " + replaced.join(", ") + " を差し替えました");
     if (st && st.message) lines.push(st.message);
     (warnings || []).forEach(function (w) { lines.push(w); });
+    if (partStoreWarning) lines.push(partStoreWarning);
     if (rlStoreWarning) lines.push(rlStoreWarning);
     eventNotice = lines.join("。");
     updateStatusUI();
@@ -925,7 +947,10 @@ footer.site-footer a { color: var(--color-mute); }
     var styled = RR.ensureStyle(expanded.html, CSS);
     var v51 = !!(info.parts) || /\{\{\s*RR:/.test(styled.html) || kitVersionAtLeast51(styled.html);
     /* 自動修復 → 採番 の順。修復で参考文献が増減するため採番より前に行う */
-    var rep = v51 ? RR.autoRepair(styled.html) : { html: styled.html, changed: false, merged: [], moved: [], removedTags: [], strippedAttrs: 0, unwrapped: 0 };
+    /* 2026-09-04(第4回徹底監査・HIGH-3): legacy文書（v5.1未満）もsanitizeOnlyで
+       許可外タグ・危険スキームのリンク・イベント属性だけは必ず取り除く。参考文献の
+       統合・付録移動・見出し再採番などv5.1専用の処理はv51のときだけautoRepairで行う */
+    var rep = v51 ? RR.autoRepair(styled.html) : RR.sanitizeOnly(styled.html);
     var rn = v51 ? RR.renumberRefs(rep.html) : { html: rep.html, changed: false, refCount: 0, unreferenced: [] };
     var filled = RR.fillTokens(rn.html);
     currentHtml = filled.html;
@@ -935,6 +960,7 @@ footer.site-footer a { color: var(--color-mute); }
       parts: info.parts || null,
       cssInjected: styled.hadStyle ? undefined : styled.injected,
       cssFailed: styled.failed,
+      cssStrippedForeign: !!styled.strippedForeignStyle,
       renumber: v51 ? rn : null,
       repair: v51 ? rep : null,
       partSet: info.partSet || null,
@@ -1221,8 +1247,14 @@ footer.site-footer a { color: var(--color-mute); }
       var ta = document.createElement("textarea");
       ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); done(); } catch (e) { window.prompt("コピーできませんでした。以下を選択してコピーしてください", text); }
+      /* 2026-09-04(第4回徹底監査・MEDIUM-8): execCommandの戻り値を見ずにdone()を呼んでいたため、
+         コピーが実際には失敗（falseを返した）していても「コピーしました」と表示し、
+         fixRoundsが誤って加算されていた（dispatch.htmlのfallbackCopyは既に戻り値を見ている） */
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       document.body.removeChild(ta);
+      if (ok) done();
+      else window.prompt("コピーできませんでした。以下を選択してコピーしてください", text);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
     else fallback();

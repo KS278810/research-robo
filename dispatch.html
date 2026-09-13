@@ -703,8 +703,25 @@ footer.site-footer a { color: var(--color-mute); }
     });
   }
 
+  /* 共有スクリプト（assets/js/rr-checks.js）が読み込めなかった場合（オフライン・
+     ブロック等）は、無反応で終わらせず案内を出す。viewer.htmlのensureRRと同じ考え方
+     （2026-09-04 第4回徹底監査・MEDIUM-9: RRが無いままnormLines→RR.normResultListLineへ
+     進みTypeErrorで無反応になっていた） */
+  function ensureRR() {
+    if (RR) return true;
+    var ingestList0 = document.getElementById("ingest-list");
+    if (ingestList0) renderList(ingestList0, [{
+      ok: false,
+      label: "必要なファイルを読み込めませんでした",
+      detail: "ページを再読み込みするか、https://ks278810.github.io/research-robo/dispatch.html を直接開いてください" +
+        "（ファイルを保存して開いた場合は、assets フォルダも同じ場所に必要です）。"
+    }]);
+    return false;
+  }
+
   function handleRouted(text, opts) {
     opts = opts || {};
+    if (!ensureRR()) return "no-rr";
     var kind = routePaste(text);
     if (kind === "empty") return kind;
     /* 前回の貼り付けで出た誘導文（判別できません等）を、次の貼り付けのたびに

@@ -248,9 +248,15 @@
       if (/^[A-Za-z ]+$/.test(w)) {
         /* 2026-09-03(7回目・初実走FB): 英単語として厳密一致すると「peer review」「ready to
            use」のような正当な英語の地の文まで赤にする（実走で"review"が誤検出された）。
-           Workerだけに適用していた日本語・数字隣接ルールを全ASCII内部語へ揃える */
+           Workerだけに適用していた日本語・数字隣接ルールを全ASCII内部語へ揃える。
+           2026-09-04(第4回徹底監査): 後読みアサーション（lookbehind）はSafari 16.4未満（iOS含む）で
+           new RegExp自体がSyntaxErrorになり、viewer全体が無反応になる実害バグだった
+           （"Deep Research"が共通禁止語のため全レポートで踏む）。.test()による存在
+           確認だけなので、ゼロ幅の先読み・後読みを消費型の文字クラスに置き換えても
+           真偽の判定結果は変わらない（同じ語への複数の独立したRegExpなので、消費が
+           他の一致を妨げることもない） */
         var esc = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        return new RegExp(esc + "(?=[^\\x00-\\x7F\\s])|(?<=[^\\x00-\\x7F])" + esc + "|\\b" + esc + "\\s?\\d").test(textOnly);
+        return new RegExp(esc + "[^\\x00-\\x7F\\s]|[^\\x00-\\x7F]" + esc + "|\\b" + esc + "\\s?\\d").test(textOnly);
       }
       return textOnly.indexOf(w) !== -1;
     });
@@ -367,7 +373,11 @@
   function citedClaimSet(doc, rawOut) {
     var set = {};
     if (!doc) return set;
-    Array.prototype.forEach.call(doc.querySelectorAll("sup a[data-claim]"), function (a) {
+    /* 2026-09-04(第4回徹底監査・MEDIUM-10): "sup a[data-claim]"限定だと、表のtd内など
+       <sup>で包まれていない裸の引用アンカーが「本文で引用されていない」と誤検出
+       （check 13/17の偽赤）になっていた。renumberRefs等と同じくsup限定をやめ、
+       付録・参考文献・免責の外にあるdata-claim付きアンカー全体を対象にする */
+    Array.prototype.forEach.call(doc.querySelectorAll("a[data-claim]"), function (a) {
       if (!notInAppendix(a)) return;
       String(a.getAttribute("data-claim") || "").split(/[\s,]+/).forEach(function (tok) {
         if (/^C-/.test(tok)) {
@@ -1076,17 +1086,37 @@
   /* RR-END が無いPART本文から、貼り付け末尾に混入した素のフェンス行・チャットの説明文
      （<で始まらない日本語の行）を切り落とす。見つからなければそのまま返す */
   var RE_JP_TEXT_LINE = /[぀-ヿ一-鿿]/;
+  /* void要素・自己終了タグは深さに数えない（大まかな「未閉じ要素の中かどうか」判定用の
+     簡易カウンタであり、厳密なHTMLパースではない） */
+  var VOID_TAGS = { area:1, base:1, br:1, col:1, embed:1, hr:1, img:1, input:1, link:1, meta:1, param:1, source:1, track:1, wbr:1 };
+  function tagDepthDelta(lineText) {
+    var delta = 0;
+    var re = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/)?>/g, m;
+    while ((m = re.exec(lineText))) {
+      if (m[2]) continue; // 自己終了タグ
+      var name = m[1].toLowerCase();
+      if (VOID_TAGS[name]) continue;
+      delta += (lineText.charAt(m.index + 1) === "/") ? -1 : 1;
+    }
+    return delta;
+  }
   function softCutBody(body) {
     var lines = String(body || "").split("\n");
+    var depth = 0; // 0=直前までの行で未閉じの要素が無い（段落等の外側）
     for (var i = 0; i < lines.length; i++) {
-      var t = lines[i].trim();
-      if (!t) continue;
+      var raw = lines[i];
+      var t = raw.trim();
+      if (!t) { depth += tagDepthDelta(raw); continue; }
       if (/^```/.test(t)) return lines.slice(0, i).join("\n");
       /* 2026-09-03(完成前の最終洗い出し・C2): R|で始まる参考文献行は日本語のタイトルを
          含むため、RE_JP_TEXT_LINEに引っかかって「地の文」と誤判定され、RR-ENDが無い
          参考文献のみのPARTがまるごと切り落とされていた。R|行はここでは無視する */
-      if (/^[ \t　]*R\|/.test(t)) continue;
-      if (t.charAt(0) !== "<" && RE_JP_TEXT_LINE.test(t)) return lines.slice(0, i).join("\n");
+      if (/^[ \t　]*R\|/.test(t)) { depth += tagDepthDelta(raw); continue; }
+      /* 2026-09-04(第4回徹底監査・HIGH-2): 折り返された段落（<p>本文が\n続きの行</p>）の
+         2行目のように、未閉じの要素の内側にある行は「地の文」ではなく本文の続きなので
+         切り落とさない。depth===0（要素の外側）のときだけチャットの説明文と判定する */
+      if (depth === 0 && t.charAt(0) !== "<" && RE_JP_TEXT_LINE.test(t)) return lines.slice(0, i).join("\n");
+      depth += tagDepthDelta(raw);
     }
     return body;
   }
@@ -1119,11 +1149,20 @@
     markers.forEach(function (mk, i) {
       var limit = i + 1 < markers.length ? markers[i + 1].start : s.length;
       var segment = s.slice(mk.end, limit);
-      var endRe = new RegExp("<!-- RR-END " + mk.k + "\\/(\\d+) -->");
+      /* 2026-09-04(第4回徹底監査・HIGH-5): 番号が一致する<!-- RR-END k/n -->だけを探すと、
+         AIがEND側の番号を打ち間違えた（例: PART 1の終端をRR-END 2/2と書いた）だけで
+         本文が完結しているのに永久にtruncated（途中で切れています）と誤判定していた。
+         セグメント内の任意のRR-ENDマーカーで終端とみなし、番号不一致はwarningに出す */
+      var endRe = /<!-- RR-END (\d+)\/(\d+) -->/;
       var em = endRe.exec(segment);
       var body, hasEnd = false, endedByNextMarker = false;
-      if (em) { body = segment.slice(0, em.index); hasEnd = true; }
-      else {
+      if (em) {
+        body = segment.slice(0, em.index);
+        hasEnd = true;
+        if (parseInt(em[1], 10) !== mk.k || parseInt(em[2], 10) !== mk.n) {
+          warnings.push("PART " + mk.k + " の終端マーカーの番号が一致しません（<!-- RR-END " + em[1] + "/" + em[2] + " -->）。PART " + mk.k + "/" + mk.n + " として扱いました");
+        }
+      } else {
         body = softCutBody(segment);
         endedByNextMarker = i + 1 < markers.length;
       }
@@ -1250,8 +1289,16 @@
       return { mode: "newReport", n: pn, id: pid, dropped: droppedAll, unverified: [], prevN: sn, prevTitle: sid.title, kmin: kmin, match: match };
     }
     if (pn > sn) {
-      var dropInc = Object.keys(filled).map(function (k) { return parseInt(k, 10); })
-        .filter(function (k) { return k >= kmin || k > pn; });
+      /* 2026-09-04(第4回徹底監査・MEDIUM-13): kminが旧分割の総数(sn)を超えている場合
+         （例: 旧n=3で{1,2}のみ保持中に「PART 4/5」だけが届く）、k>=kmin以下の
+         フィルタでは旧PARTが1件も対象にならず、別分割のPARTが無言で混在していた。
+         kmin>snは「旧分割の続きとして解釈できない別スキーム」を意味するので、
+         その場合は旧PARTを全て破棄する（kmin<=snのとき＝KIT指示の末尾再分割
+         [例: Case1b] は従来どおりkmin未満を温存する） */
+      var dropInc = kmin > sn
+        ? Object.keys(filled).map(function (k) { return parseInt(k, 10); })
+        : Object.keys(filled).map(function (k) { return parseInt(k, 10); })
+            .filter(function (k) { return k >= kmin || k > pn; });
       return { mode: "newCount", n: pn, id: nextId, dropped: dropInc, unverified: [], prevN: sn, prevTitle: sid.title, kmin: kmin, match: match };
     }
     if (pn < sn && pn > 0) {
@@ -1275,22 +1322,131 @@
      文字コード宣言はダウンロードしたHTMLをfile://で開いたときの文字化け防止に必要で、
      ここしか宣言場所が無いことがある（meta charsetを別途持たない旧テンプレ等） */
   var HEAD_FORBIDDEN_SEL = 'base, link, noscript, template, script:not([type="application/ld+json"]), meta[http-equiv]:not([http-equiv="Content-Type" i])';
+  /* 2026-09-04(第4回徹底監査・HIGH-4): body側の許可外リストがhead側より狭く、
+     meta[http-equiv=refresh]・base・video/audio/source/track・svg image/use・
+     form/input/button/pictureがbody内では素通りしていた（sandboxed previewでも
+     meta refreshの自己ナビゲーションや外部リソース取得が起きる）。R3（autoRepair）と
+     許可外タグ検査の両方がこの定数を共有する。
+     注意: [style]/[onclick]はここに含めない——これはタグ「削除」用の定数であり、
+     styleやonclick属性だけを持つ<p>等は「要素ごと削除」してはいけない（属性だけを
+     外すのが正しい。属性ストリップは別処理が行う）。属性の存在チェックは
+     runChecksの許可外タグ検査側でだけ[style]/[onclick]を追加する */
+  var BODY_FORBIDDEN_SEL = 'style, link, img, iframe, object, embed, script:not([type="application/ld+json"]), ' +
+    'base, meta[http-equiv]:not([http-equiv="Content-Type" i]), video, audio, source, track, ' +
+    'svg image, svg use, form, input, button, picture';
+  /* 危険とみなすURLスキーム。data:はHTML文書を丸ごと埋め込めるため<script>と同等に扱う */
+  var RE_DANGEROUS_SCHEME = /^(mailto:|tel:|javascript:|data:|blob:|vbscript:)/i;
+
+  /* R3+R4を共通化: 許可外タグ・危険スキームのリンクを取り除く。autoRepair（v5.1文書）と
+     sanitizeOnly（legacy文書）の両方から呼ぶ。out.removedTags/strippedAttrs/unwrapped を
+     加算する（呼び出し側であらかじめ配列・0初期化しておくこと） */
+  function sanitizeForbiddenAndSchemes(doc, out) {
+    Array.prototype.slice.call(doc.body.querySelectorAll(BODY_FORBIDDEN_SEL)).forEach(function (el) {
+      out.removedTags.push(el.tagName === "META" ? "meta[http-equiv]" : el.tagName.toLowerCase());
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    /* head側の許可外部品も同じ基準で削除する。<link>はビューア表示時点で外部
+       リクエストを発生させ、<script>（非JSON-LD）はダウンロードHTMLで実行される
+       ため、「どこにも送信されません」の前提が崩れる。headのstyleはensureStyleが
+       先に注入した組版CSSなので対象外にする */
+    if (doc.head) {
+      Array.prototype.slice.call(doc.head.querySelectorAll(HEAD_FORBIDDEN_SEL)).forEach(function (el) {
+        out.removedTags.push(el.tagName === "META" ? "meta[http-equiv]" : el.tagName.toLowerCase());
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    }
+    /* onclick だけでなく onload・onmouseover 等のイベント属性をすべて外す
+       （「HTMLをダウンロード」で配布したファイルでは実際に発火するため）。head側の
+       残った要素（meta/title/style/ld+json）にも同じ処理をかける */
+    Array.prototype.slice.call(doc.body.querySelectorAll("*")).forEach(function (el) {
+      Array.prototype.slice.call(el.attributes).forEach(function (at) {
+        if (at.name === "style" || /^on/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
+      });
+    });
+    if (doc.head) {
+      Array.prototype.slice.call(doc.head.querySelectorAll("*")).forEach(function (el) {
+        Array.prototype.slice.call(el.attributes).forEach(function (at) {
+          if (at.name === "style" || /^on/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
+        });
+      });
+    }
+    /* R4. 本文中の外部リンクと mailto:/tel:/javascript:/data:/blob:/vbscript: を解除する
+       （表示テキストは残す）。2026-09-04(HIGH-6): data:/blob:/vbscript:を追加
+       （data:はHTML文書ごと埋め込める・blob:はダウンロードHTML内で任意コンテンツを
+       参照しうる・vbscript:は古いIEのみだが用途が無い） */
+    Array.prototype.filter.call(doc.querySelectorAll("a[href]"), function (a) {
+      var h = (a.getAttribute("href") || "").trim();
+      if (RE_DANGEROUS_SCHEME.test(h)) return true;
+      if (/^https?:/i.test(h)) return !(a.closest && a.closest(".references, .appendix, .disclaimer"));
+      return false;
+    }).forEach(function (a) {
+      var parent = a.parentNode;
+      if (!parent) return;
+      while (a.firstChild) parent.insertBefore(a.firstChild, a);
+      parent.removeChild(a);
+      out.unwrapped++;
+    });
+    /* 2026-09-04(第4回徹底監査・MEDIUM-17): 手書きのtarget="_blank"にrel="noopener"が
+       無いと、開いた別タブから window.opener 経由でこのページを操作できてしまう
+       （reverse tabnabbing）。expandCompact生成分は既にnoopenerを付けているが、
+       AIがフルHTML記法で直接書いたリンクは対象外だった */
+    Array.prototype.slice.call(doc.querySelectorAll('a[target]')).forEach(function (a) {
+      var rel = (a.getAttribute("rel") || "").toLowerCase().split(/\s+/);
+      var need = ["noopener", "noreferrer"].filter(function (r) { return rel.indexOf(r) === -1; });
+      if (need.length) {
+        a.setAttribute("rel", (a.getAttribute("rel") ? a.getAttribute("rel") + " " : "") + need.join(" "));
+        out.relFixed = (out.relFixed || 0) + 1;
+      }
+    });
+  }
+
+  /* legacy文書（v5.1未満・PART無し・{{RR:トークン無し）向けの最小サニタイズ。
+     許可外タグの削除・危険スキームの解除・イベント属性の除去だけを行い、参考文献の
+     統合・付録移動・見出し再採番などv5.1専用の構造前提の処理は行わない
+     （2026-09-04 第4回徹底監査・HIGH-3: legacy文書はautoRepairも許可外タグ検査も
+     一切通らず、<script>・onerror等がそのまま残っていた） */
+  function sanitizeOnly(html) {
+    var s = String(html || "");
+    var out = { html: s, changed: false, merged: [], moved: [], moveSkipped: "", removedTags: [], strippedAttrs: 0, unwrapped: 0, structureMoved: [], dedup: [] };
+    var doc = parseDoc(s);
+    if (!doc || !doc.body) return out;
+    sanitizeForbiddenAndSchemes(doc, out);
+    if (out.removedTags.length || out.strippedAttrs || out.unwrapped || out.relFixed) {
+      var dt = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">\n" : "";
+      out.html = dt + doc.documentElement.outerHTML;
+      out.changed = true;
+    }
+    return out;
+  }
 
   /* <style> が無ければ </head> の直前にCSSを挿入する（文字列操作。DOM再直列化はしない） */
+  /* head<style>を無条件に信頼しない。@import・背景url(...)・（古いIEの）expression(...)を
+     含む<style>は外部通信や攻撃経路になりうるため、その<style>だけを取り除く
+     （2026-09-04 第4回徹底監査・HIGH-7） */
+  var RE_DANGEROUS_CSS = /@import|url\s*\(|expression\s*\(/i;
   function ensureStyle(html, css) {
     var s = String(html || "");
     var doc = parseDoc(s);
     /* <body> 側の <style> は R3（autoRepair）が削除するので「既にCSSがある」とみなさない。
        文書全体を見ていた頃は、body内に<style>があるとCSSを入れずR3がそれを消し、
        完全に無装飾のレポートになっていた */
-    var hadStyle = !!(doc && doc.head && doc.head.querySelector("style"));
-    if (hadStyle) return { html: s, injected: false, hadStyle: true, failed: false };
+    var headStyles = (doc && doc.head) ? Array.prototype.slice.call(doc.head.querySelectorAll("style")) : [];
+    var dangerous = headStyles.filter(function (el) { return RE_DANGEROUS_CSS.test(el.textContent || ""); });
+    var strippedForeignStyle = false;
+    if (dangerous.length) {
+      dangerous.forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
+      var dt0 = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">\n" : "";
+      s = dt0 + doc.documentElement.outerHTML;
+      strippedForeignStyle = true;
+    }
+    var hadStyle = (headStyles.length - dangerous.length) > 0;
+    if (hadStyle) return { html: s, injected: false, hadStyle: true, failed: false, strippedForeignStyle: strippedForeignStyle };
     var block = "<style>\n" + String(css || "") + "\n</style>\n";
     var i = s.search(/<\/head\s*>/i);
-    if (i >= 0) return { html: s.slice(0, i) + block + s.slice(i), injected: true, hadStyle: false, failed: false };
+    if (i >= 0) return { html: s.slice(0, i) + block + s.slice(i), injected: true, hadStyle: false, failed: false, strippedForeignStyle: strippedForeignStyle };
     var j = s.search(/<body\b/i);
-    if (j >= 0) return { html: s.slice(0, j) + block + s.slice(j), injected: true, hadStyle: false, failed: false };
-    return { html: s, injected: false, hadStyle: false, failed: true };
+    if (j >= 0) return { html: s.slice(0, j) + block + s.slice(j), injected: true, hadStyle: false, failed: false, strippedForeignStyle: strippedForeignStyle };
+    return { html: s, injected: false, hadStyle: false, failed: true, strippedForeignStyle: strippedForeignStyle };
   }
 
   /* 参考文献番号を本文の出現順に 1..N へ付け直し、参考文献の <ol> を同じ順に並べ替える。
@@ -1311,7 +1467,12 @@
      中に生HTMLとして混入しタグごと壊れる（"を閉じてしまう）。
      ※付録A範囲の検出（reApx）は<section>タグ自体を探すため、この版は使わず
      従来のmaskRegionsを使う——両者を混同すると付録Aが二度と見つからなくなる */
-  var RE_TAG_ONLY = /<[^>]*>/g;
+  /* 2026-09-04(第4回徹底監査・MEDIUM-12): 単純な /<[^>]*>/ は引用符内の">"（例:
+     title="a>b"）で止まってしまい、その直後の[[…]]/R|行/{{RR:…}}を「タグの外」と
+     誤判定して展開・置換し、属性値の中に生HTMLが混入してタグごと壊れていた。
+     二重引用符・単一引用符で囲まれた区間は">"を含めて丸ごと1トークンとして
+     読み飛ばす（引用符内の内容そのものは一切解釈しない） */
+  var RE_TAG_ONLY = /<(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
 
   /* script/style/HTMLコメントの中身を同じ長さの改行で埋め、圧縮記法の正規表現が
      JSON-LDやコメント内の [[…]]・R|行を誤って展開しないようにする。改行埋めなのは
@@ -1615,38 +1776,10 @@
       out.dedup.push("apx-a-none");
     }
 
-    /* R3. 許可外のタグを削除し、style／onclick属性を外す（要素自体と文章は残す） */
-    Array.prototype.slice.call(doc.body.querySelectorAll(
-      'img, iframe, object, embed, link, style, script:not([type="application/ld+json"])'
-    )).forEach(function (el) {
-      out.removedTags.push(el.tagName.toLowerCase());
-      if (el.parentNode) el.parentNode.removeChild(el);
-    });
-    /* head側の許可外部品も同じ基準で削除する。<link>はビューア表示時点で外部
-       リクエストを発生させ、<script>（非JSON-LD）はダウンロードHTMLで実行される
-       ため、「どこにも送信されません」の前提が崩れる。headのstyleはensureStyleが
-       先に注入した組版CSSなので対象外にする */
-    if (doc.head) {
-      Array.prototype.slice.call(doc.head.querySelectorAll(HEAD_FORBIDDEN_SEL)).forEach(function (el) {
-        out.removedTags.push(el.tagName === "META" ? "meta[http-equiv]" : el.tagName.toLowerCase());
-        if (el.parentNode) el.parentNode.removeChild(el);
-      });
-    }
-    /* onclick だけでなく onload・onmouseover 等のイベント属性をすべて外す
-       （「HTMLをダウンロード」で配布したファイルでは実際に発火するため）。head側の
-       残った要素（meta/title/style/ld+json）にも同じ処理をかける */
-    Array.prototype.slice.call(doc.body.querySelectorAll("*")).forEach(function (el) {
-      Array.prototype.slice.call(el.attributes).forEach(function (at) {
-        if (at.name === "style" || /^on/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
-      });
-    });
-    if (doc.head) {
-      Array.prototype.slice.call(doc.head.querySelectorAll("*")).forEach(function (el) {
-        Array.prototype.slice.call(el.attributes).forEach(function (at) {
-          if (at.name === "style" || /^on/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
-        });
-      });
-    }
+    /* R3+R4. 許可外のタグ・危険スキームのリンクを取り除く（v51文書・legacy文書の
+       両方から呼べるよう sanitizeForbiddenAndSchemes() に切り出した。2026-09-04
+       第4回徹底監査・HIGH-3参照） */
+    sanitizeForbiddenAndSchemes(doc, out);
 
     /* R5. 本文見出しに手打ちされた章番号を外す。組版CSSは .body-columns の h2/h3 に
        counter で番号を振る（rr-report-css.js の h2::before/h3::before）ため、AIが
@@ -1668,21 +1801,7 @@
       });
     }
 
-    /* R4. 本文中の外部リンクと mailto:/tel:/javascript: を解除する（表示テキストは残す） */
-    Array.prototype.filter.call(doc.body.querySelectorAll("a[href]"), function (a) {
-      var h = a.getAttribute("href") || "";
-      if (/^(mailto:|tel:|javascript:)/i.test(h)) return true;
-      if (/^https?:/i.test(h)) return !(a.closest && a.closest(".references, .appendix, .disclaimer"));
-      return false;
-    }).forEach(function (a) {
-      var parent = a.parentNode;
-      if (!parent) return;
-      while (a.firstChild) parent.insertBefore(a.firstChild, a);
-      parent.removeChild(a);
-      out.unwrapped++;
-    });
-
-    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.structureMoved.length || out.headingNumbers || out.dedup.length) {
+    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.relFixed || out.structureMoved.length || out.headingNumbers || out.dedup.length) {
       var dt = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">\n" : "";
       out.html = dt + doc.documentElement.outerHTML;
       out.changed = true;
@@ -1699,16 +1818,21 @@
        （<sup>で包まれていない引用、例: 表の<td>内の裸のリンクも対象にする） */
     var anchors = Array.prototype.filter.call(doc.querySelectorAll('a[href^="#ref-"]'), notInAppendix);
     if (!anchors.length) return res;
+    /* 2026-09-04(第4回徹底監査・MEDIUM-11): mapのキーは文書に書かれた資料IDの文字列
+       そのまま（0詰めが揺れうる）だったため、"1-7"（本文の引用）と"1-07"（参考文献の
+       id）が別キー扱いになり、引用が本来の資料に解決せず不整合になっていた。
+       canonId()で0詰めを剥がした値をキーにする（属性値自体は書き換えない） */
     var map = {}, order = [];
     anchors.forEach(function (a) {
       var old = (a.getAttribute("href") || "").slice("#ref-".length);
       if (!old) return;
-      if (!map[old]) { order.push(old); map[old] = order.length; }
+      var key = canonId(old);
+      if (!map[key]) { order.push(key); map[key] = order.length; }
     });
     var lis = Array.prototype.filter.call(doc.querySelectorAll('li[id^="ref-"]'), notInAppendix);
-    var unreferenced = lis.filter(function (li) { return !map[li.id.slice("ref-".length)]; });
+    var unreferenced = lis.filter(function (li) { return !map[canonId(li.id.slice("ref-".length))]; });
     var next = order.length;
-    unreferenced.forEach(function (li) { map[li.id.slice("ref-".length)] = ++next; });
+    unreferenced.forEach(function (li) { map[canonId(li.id.slice("ref-".length))] = ++next; });
     res.refCount = order.length;
     res.unreferenced = unreferenced.map(function (li) { return li.id.slice("ref-".length); });
     res.map = map;
@@ -1727,13 +1851,13 @@
     // 書き換え
     anchors.forEach(function (a) {
       var old = (a.getAttribute("href") || "").slice("#ref-".length);
-      var nn = map[old];
+      var nn = map[canonId(old)];
       if (!nn) return;
       a.setAttribute("href", "#ref-" + nn);
       var t = (a.textContent || "").trim();
       if (/^\[[^\]]*\]$/.test(t) || t === old) a.textContent = "[" + nn + "]";
     });
-    lis.forEach(function (li) { var nn = map[li.id.slice("ref-".length)]; if (nn) li.id = "ref-" + nn; });
+    lis.forEach(function (li) { var nn = map[canonId(li.id.slice("ref-".length))]; if (nn) li.id = "ref-" + nn; });
     ols.forEach(function (ol) {
       var children = Array.prototype.slice.call(ol.childNodes);
       var refItems = children.filter(function (c) { return c.nodeType === 1 && c.tagName === "LI" && /^ref-\d+$/.test(c.id); });
@@ -1879,18 +2003,26 @@
       COVER_STATS: coverStatsHtml(st)
     };
     re.lastIndex = 0;
+    /* 2026-09-04(第4回徹底監査・MEDIUM-12): 「属性値の中か」の判定に s.lastIndexOf("<"/">")
+       を使うと、引用符内の">"（title="a>b"）を実際のタグ境界と誤認し、属性値の中と
+       誤判定してしまう（逆に、本当は属性値の中なのに見逃す側にも倒れうる）。
+       RE_TAG_ONLYと同じ引用符対応のタグ検出でマスクした文字列を使い、トークンの
+       開始位置がマスクされていれば（\nに置き換わっていれば）タグ（属性値）の
+       内側と判定する。タグ自身の直後（本来の正しい配置）ではその位置は
+       マスクされていない元の文字のままなので誤検出しない */
+    var maskedForTokens = maskRegionsAndTags(s);
     out.html = s.replace(re, function (all, rawName, offset) {
       out.seen++;
       var name = rawName.toUpperCase();
       var canon = TOKEN_ALIASES[name] || name;
       if (values[canon] === undefined) { if (out.unknown.indexOf(rawName) === -1) out.unknown.push(rawName); return all; }
-      /* COVER_STATS/COVERAGE_CARDはタグを含むHTML断片。属性値の中（直前の<が>より
-         後ろにある位置）へ差し込むとタグが壊れるので、そこでは置換せず未置換のまま
-         残す（check 1 の未置換チェックが検出する） */
+      /* COVER_STATS/COVERAGE_CARDはタグを含むHTML断片。属性値の中へ差し込むと
+         タグが壊れるので、そこでは置換せず未置換のまま残す（check 1 の未置換
+         チェックが検出する） */
       var v = values[canon];
-      if (/[<]/.test(v)) {
-        var lt = s.lastIndexOf("<", offset), gt = s.lastIndexOf(">", offset);
-        if (lt > gt) { if (out.misplaced.indexOf(canon) === -1) out.misplaced.push(canon); return all; }
+      if (/[<]/.test(v) && maskedForTokens.charAt(offset) === "\n") {
+        if (out.misplaced.indexOf(canon) === -1) out.misplaced.push(canon);
+        return all;
       }
       out.filled[canon] = v;
       return v;
@@ -1928,6 +2060,10 @@
         { kind: "log", title: "レポートに見た目の書式を付けました" });
       else if (info.cssFailed) addResult(results, false, "書式CSSを挿入できませんでした（</head> が見つかりません）", "HTMLの先頭部分（<!DOCTYPE html>〜</head>）が欠けている可能性があります。PART 1 を貼り直してください。",
         { local: true, title: "レポートの先頭部分が欠けていて、書式を付けられませんでした", next: "PART 1 を貼り直す" });
+    }
+    if (info.cssStrippedForeign) {
+      addResult(results, true, "貼り付けられた書式(CSS)に外部読み込み（@import・url(...)等）が含まれていたため取り除きました", "その<style>は使わず、共通の書式CSSに差し替えました。プレビュー・保存にはこの内容を使います。",
+        { kind: "log", title: "外部を読み込む書式(CSS)を取り除き、共通の書式に差し替えました" });
     }
     if (info.renumber && info.renumber.changed) {
       addResult(results, true, "参考文献番号を本文の出現順（1〜" + info.renumber.refCount + "）に付け直しました", "引用の番号と参考文献リストの並びを、本文で最初に登場した順に振り直しました（data-claim は変更していません）。",
@@ -2014,7 +2150,7 @@
 
     // 新規: 許可外タグ・属性（v5.1+文書は全体で禁止。style/link/img/iframe/object/embed/
     //       script[JSON-LD以外]、および style属性・onclick属性）
-    var FORBIDDEN_SEL = 'style, link, img, iframe, object, embed, script:not([type="application/ld+json"]), [style], [onclick]';
+    var FORBIDDEN_SEL = BODY_FORBIDDEN_SEL + ', [style], [onclick]'; // R3（sanitizeForbiddenAndSchemes）のタグ削除リストを共有し、属性の存在チェックだけこの検査側で追加する
     /* <head> に挿入される書式用<style>は対象外。本文（<body>）を走査し、
        head側は HEAD_FORBIDDEN_SEL（R3と共有）で別途走査する。片方だけ禁じると
        もう一方が直せない赤を残すため、同じ定数を使う */
@@ -2050,9 +2186,9 @@
 
     // 新規: 許可外リンク（mailto:/tel:/javascript:）はどこにも書けない（.disclaimer含む）
     var badScheme = Array.prototype.filter.call(doc.querySelectorAll("a[href]"), function (a) {
-      return /^(mailto:|tel:|javascript:)/i.test((a.getAttribute("href") || "").trim());
+      return RE_DANGEROUS_SCHEME.test((a.getAttribute("href") || "").trim());
     });
-    addResult(results, badScheme.length === 0, "許可外リンク（mailto:/tel:/javascript:）が使われていない",
+    addResult(results, badScheme.length === 0, "許可外リンク（mailto:/tel:/javascript:/data:/blob:/vbscript:）が使われていない",
       badScheme.length ? "検出: " + badScheme.slice(0, 5).map(function (a) { return a.getAttribute("href"); }).join(", ") : "",
       { title: badScheme.length ? "使ってはいけない種類のリンク（メール・電話など）が入っています"
                                 : "リンクの種類に問題はありません" });
@@ -2394,6 +2530,7 @@
     renumberRefs: renumberRefs,
     expandCompact: expandCompact,
     autoRepair: autoRepair,
+    sanitizeOnly: sanitizeOnly,
     computeReportStats: computeReportStats,
     fillTokens: fillTokens,
     statTile: statTile,

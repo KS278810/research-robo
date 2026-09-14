@@ -42,7 +42,10 @@ if (location.hostname === 'ks278810.github.io') {
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- 2026-09-14(Phase4): 社内ネットワーク等でGoogle Fontsに到達できなくても
+     初回描画をブロックしない（media=printでロード後にallへ切替。noscript版も残す） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap"></noscript>
 
 <style>
 /* ============================================================
@@ -72,8 +75,8 @@ ul { list-style: none; margin: 0; padding: 0; }
   --color-border: #E4E9EE;
   --color-on-accent: #FFFFFF;
 
-  --font-heading: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
-  --font-body: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+  --font-heading: "Zen Maru Gothic", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-body: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "BIZ UDPGothic", system-ui, sans-serif;
   --font-mono: "SF Mono", "Consolas", "Menlo", monospace;
 
   --fs-h1: clamp(2rem, 1.3rem + 2.6vw, 3.625rem);
@@ -1458,6 +1461,27 @@ p { margin: 0; }
      いずれもバージョン番号を含まない固定URLなので、版を上げてもここは変えない */
   var KIT_FULL = 'RESEARCH_KIT_latest.md';
   var KIT_LITE = 'RESEARCH_KIT_lite_latest.md';
+  /* 2026-09-14(Phase4): KIT本文と案内文には公開サイトのURLが焼き込まれている。社内
+     サーバ・GitLab/GHES Pages 等の別オリジン／別パスで配信されている場合、コピー時に
+     その配信元URLへ書き換える（KIT .md 自体は編集しない——kit_contract.pyのVURLピンは
+     KIT本文のリテラルを要求するため、書き換えは組み立て後の全文に対してだけ行う）。
+     判定は配信元URLの「ディレクトリ」= new URL('.', location.href)。file:// では
+     fetch自体が失敗するので書き換えない */
+  var PUBLIC_BASE = 'https://ks278810.github.io/research-robo/';
+  function servingBase() {
+    try {
+      if (location.protocol !== 'http:' && location.protocol !== 'https:') return null;
+      return new URL('.', location.href).href;
+    } catch (e) { return null; }
+  }
+  function localizeKitUrls(text) {
+    var base = servingBase();
+    if (!base || base === PUBLIC_BASE || text.indexOf(PUBLIC_BASE) < 0) return text;
+    return text.split('\n').map(function (line) {
+      if (line.indexOf('License:') >= 0) return line; /* CC BY 帰属行は書き換えない */
+      return line.split(PUBLIC_BASE).join(base);
+    }).join('\n');
+  }
   var kitTextCache = {};
   var kitTextPromise = {}; /* 進行中のfetchをファイル別に共有し、二重取得を防ぐ */
   var KIT_FETCH_TIMEOUT = 10000;
@@ -1519,6 +1543,27 @@ p { margin: 0; }
   if (window.requestIdleCallback) requestIdleCallback(warmKits, { timeout: 4000 });
   else setTimeout(warmKits, 2500);
 
+  /* 2026-09-14(Phase4): 社内配信時は、ダウンロードする .md も配信元URLへ書き換えた
+     内容にする（Blob）。download属性は非セキュアコンテキスト(http://)でも動く。
+     本番（公開サイト）では何もしない（クリックのデフォルト挙動のまま） */
+  Array.prototype.forEach.call(document.querySelectorAll('a[download][href$=".md"]'), function (a) {
+    a.addEventListener('click', function (ev) {
+      var base = servingBase();
+      if (!base || base === PUBLIC_BASE || typeof Blob !== 'function' || !window.URL || !URL.createObjectURL) return;
+      var file = a.getAttribute('href');
+      ev.preventDefault();
+      fetchKitText(file).then(function (t) {
+        var url = URL.createObjectURL(new Blob([localizeKitUrls(t)], { type: 'text/markdown' }));
+        var tmp = document.createElement('a'); tmp.href = url; tmp.download = file;
+        document.body.appendChild(tmp); tmp.click(); document.body.removeChild(tmp);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      }).catch(function () {
+        var tmp = document.createElement('a'); tmp.href = file; tmp.download = file; /* 素のダウンロードに戻す */
+        document.body.appendChild(tmp); tmp.click(); document.body.removeChild(tmp);
+      });
+    });
+  });
+
   /* 2回目以降（KITを作業スペースに登録済み）向け: KIT本文を含まない起動文だけ */
   function buildShortPromptText() {
     return [
@@ -1537,7 +1582,9 @@ p { margin: 0; }
        KIT冒頭付近（本体の40%未満の位置）にあるため、貼り付けが途中で切れていても検出
        できなかった（末尾確認用のはずが末尾を確認していなかった）。最終章の見出しに直す。 */
     var tailHeading = isLite ? '# 6. うまくいかないときの対処' : '# 21. 最重要ルールの再掲（末尾・省略不可）';
-    return [
+    /* 2026-09-14(Phase4): localizeKitUrlsで包む1箇所のみ。KIT本文中のviewer URL・
+       下のlite案内URL（1行下）の両方が、配信元が公開サイト以外なら書き換わる */
+    return localizeKitUrls([
       '以下はResearch KIT本文。この手順書に従って動作すること。',
       '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
       '',
@@ -1554,7 +1601,7 @@ p { margin: 0; }
         + (isLite
             ? '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直してください。」'
             : '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直すか、1チャットで完結する軽量版（ https://ks278810.github.io/research-robo/RESEARCH_KIT_lite_latest.md ）をお使いください。」')
-    ].join('\n');
+    ].join('\n'));
   }
 
   function fallbackCopy(text) {

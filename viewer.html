@@ -14,7 +14,10 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- 2026-09-14(Phase4): 社内ネットワーク等でGoogle Fontsに到達できなくても
+     初回描画をブロックしない（media=printでロード後にallへ切替。noscript版も残す） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap"></noscript>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; }
@@ -33,8 +36,8 @@ html, body { margin: 0; padding: 0; }
   --color-ok: #0F766E;
   --color-bad: #B91C1C;
   --color-warn: #B45309;
-  --font-heading: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
-  --font-body: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+  --font-heading: "Zen Maru Gothic", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-body: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "BIZ UDPGothic", system-ui, sans-serif;
   --font-mono: "SF Mono", "Consolas", "Menlo", monospace;
   --radius-md: 14px;
   --radius-sm: 8px;
@@ -338,9 +341,15 @@ footer.site-footer a { color: var(--color-mute); }
       statusBanner.hidden = false;
       statusBanner.className = "status-banner";
       if (statusTitle) statusTitle.textContent = "";
-      /* RRが無いので updateStatusUI は呼べない（RR.partStatusに依存）。直接書く */
+      /* RRが無いので updateStatusUI は呼べない（RR.partStatusに依存）。直接書く。
+         2026-09-14(Phase4): http(s)で開いている場合はこのページ自身のURL（サブパス・
+         社内ホスト先を含む）を案内する。file://で開いた場合だけ公開URLへ誘導する
+         （その場合はassetsフォルダごと保存されていないと動かないため） */
+      var selfUrl = /^https?:$/.test(location.protocol)
+        ? new URL("viewer.html", location.href).href
+        : "https://ks278810.github.io/research-robo/viewer.html";
       eventNotice = "必要なファイルを読み込めませんでした。ページを再読み込みするか、" +
-        "https://ks278810.github.io/research-robo/viewer.html を直接開いてください" +
+        selfUrl + " を直接開いてください" +
         "（ファイルを保存して開いた場合は、assets フォルダも同じ場所に必要です）。";
       if (statusNotice) statusNotice.textContent = eventNotice;
     }

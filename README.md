@@ -40,6 +40,13 @@ Geminiは長文の貼り付けが不安定な場合があります。その場�
 3. **根拠のある情報だけ使う** — 出典位置・原文抜粋つきの構造化データで結果を回収し、Blind Evidence Auditで数値・帰属を検査
 4. **そのまま渡せるレポートに** — 監査を通った事実だけで、出典番号つきのレポートを構成
 
+## 社内ホスト（イントラネットでの配信）
+
+`git clone` したままの内容を編集なしで社内に配信できます: Docker（`cd hosting && docker compose up -d --build`）、
+Python 3だけのスクリプト（`python3 hosting/serve.py 8080 --host 0.0.0.0`）、GitHub Enterprise Server / GitLab
+Pages のいずれでも対応しています。手順・注意点は [`hosting/README-hosting.md`](./hosting/README-hosting.md)
+を参照してください。コピーされるプロンプト内のビューアURL等は配信元のURLに自動で置き換わります。
+
 ## ライセンス
 
 [CC BY 4.0](./LICENSE)（Creative Commons Attribution 4.0 International）で公開しています。

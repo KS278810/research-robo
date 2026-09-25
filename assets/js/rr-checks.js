@@ -1226,9 +1226,20 @@
 
   /* IDの数字区間の先頭ゼロを落として突合用に揃える（C-07≡C-7、C-1-07≡C-1-7、資料 01-07≡1-7）。
      AIがPARTごとに0詰めを揺らすと、同じ主張が別IDに数えられて件数照合が合わなくなり、
-     参考文献も未解決参照になるため。data-claim属性の値そのものは書き換えない */
+     参考文献も未解決参照になるため。data-claim属性の値そのものは書き換えない。
+     2026-09-24(viewer第2弾・全角ID正規化): 先に全角数字を半角化してから0詰めを剥がす
+     （toHalfDigitsを通さないと [[１-７|…]] のような全角ID表記が半角と別物として扱われ、
+     資料参照が解決できなくなる） */
   function canonId(id) {
-    return String(id == null ? "" : id).trim().replace(/\d+/g, function (d) { return String(parseInt(d, 10)); });
+    return toHalfDigits(String(id == null ? "" : id).trim()).replace(/\d+/g, function (d) { return String(parseInt(d, 10)); });
+  }
+
+  /* 2026-09-24(viewer第2弾・0詰め保持): canonIdは突合専用で0詰めを剥がすため、AIへの
+     修復指示文にそのままcanon形式を出すと、フル版ID（C-2-07）が C-2-7 に化けて本文の
+     表記と食い違う。rawMap（citedClaimSet()のrawOut・parsePlan().raw等、canon→本文の
+     生表記）が持っていればその表記を、無ければcanon形式のまま返す */
+  function keepRawId(id, rawMap) {
+    return (rawMap && rawMap[id]) || id;
   }
 
   /* PART本文から「どのレポートか」を取り出す。§19.2の構造上、head・表紙を含む
@@ -1509,7 +1520,10 @@
       var byRid = {};
       for (var i = 0; i < items.length; i++) {
         var f = items[i].split("|");
-        var rid = (f[0] || "").trim();
+        /* 2026-09-24(viewer第2弾・全角ID正規化): 形式チェック（半角限定）の前に
+           全角数字だけ半角化する。[[１-７|…]] のような全角ID表記も、AIが手打ちで
+           混ぜた半角/全角混在（[[1-７|…]]）も、正しい資料参照として展開できるように */
+        var rid = toHalfDigits((f[0] || "").trim());
         var claim = (f.length > 1 ? f[1] : "").trim();
         /* ref-IDらしくなければ展開しない（本文中の [[…]] を誤変換しないため）。
            並列引用の1件だけが書式違いのときは、正しい分は展開し、誤った分だけ
@@ -1565,7 +1579,9 @@
       }
       if (urlStart < 0) return all;
       var url = f.slice(urlStart).join("|").trim();
-      var rid = (f[0] || "").trim();
+      /* 2026-09-24(viewer第2弾・全角ID正規化): [[…]]側と同様、形式チェックの前に
+         全角数字を半角化する */
+      var rid = toHalfDigits((f[0] || "").trim());
       if (!/^[0-9A-Za-z][0-9A-Za-z-]*$/.test(rid)) return all;
       rid = canonId(rid);
       var type = (f[1] || "").trim();
@@ -2224,8 +2240,15 @@
             next: len >= goal ? "" : "任意: AIに「本文を増補して」と送る" });
       }
       // 17. rr:confirmed-count と本文ID（引用C ∪ UNCITED）の整合
-      var ids = citedClaimSet(doc);
-      parseUncited(html).entries.forEach(function (e) { if (/^C-/.test(e.id)) ids[e.id] = true; });
+      /* 2026-09-24(viewer第2弾・0詰め保持): rawIdsにcanon→本文の生表記（0詰め込み）を
+         集める。AIへの修復指示（over/missingIdsの列挙）はcanonではなくこちらで出す */
+      var rawIds = {};
+      var ids = citedClaimSet(doc, rawIds);
+      parseUncited(html).entries.forEach(function (e) {
+        if (!/^C-/.test(e.id)) return;
+        ids[e.id] = true;
+        if (!rawIds[e.id]) rawIds[e.id] = e.rawId;
+      });
       var union = Object.keys(ids).length;
       var okc = union === total;
       var d17 = "";
@@ -2242,19 +2265,34 @@
       var planTrustworthy = plan17.present && plan17.count && plan17.count === total;
       if (!okc && union > total) {
         var over;
+        /* フル版（C-2-7のようなWP付きダッシュ形式）はWPごとに主張番号がローカルに
+           振り直されるため、「番号が確認済み件数を超えたら超過」という単純な数値比較は
+           成立しない（旧numOfは常に-1を返し無言でoverが空になっていた）。PLANが信用
+           できないと超過IDを個別に特定する術がない点はライト版・フル版で変わらないため、
+           判定できない場合は「特定できない」と明示する（黙って空リストにしない） */
+        var overIdentifiable = true;
         if (planTrustworthy) {
           over = sortIds(Object.keys(ids).filter(function (id) { return !plan17.all[id]; }));
         } else {
-          /* PLANが無い・信用できない旧レポート向けの推定。/^C-(\d+)$/ はlite形式（C-12）
-             専用で、フル版の C-2-7 では常に -1 になり何も挙がらない（既知の制約） */
-          var numOf = function (id) { var m = String(id).match(/^C-(\d+)$/); return m ? parseInt(m[1], 10) : -1; };
-          over = Object.keys(ids).filter(function (id) { return numOf(id) > total; }).sort(function (a, b) { return numOf(a) - numOf(b); });
+          var isFullFormat = Object.keys(ids).some(function (id) { return /^C-\d+-\d+/.test(id); });
+          if (isFullFormat) {
+            over = [];
+            overIdentifiable = false;
+          } else {
+            /* lite形式（C-12）専用の推定: 通し番号が確認済み件数を超えていれば超過とみなす */
+            var numOf = function (id) { var m = String(id).match(/^C-(\d+)$/); return m ? parseInt(m[1], 10) : -1; };
+            over = Object.keys(ids).filter(function (id) { return numOf(id) > total; }).sort(function (a, b) { return numOf(a) - numOf(b); });
+          }
         }
+        var overRaw = over.map(function (id) { return keepRawId(id, rawIds); });
         d17 = "本文またはUNCITED行に、確認済みでないClaim IDが " + (union - total) + " 件混ざっています。" +
           (plan17.present && plan17.count && !planTrustworthy
             ? "PLANの割当件数（" + plan17.count + "件）が確認済み件数（" + total + "件）と合っていないため、超過IDを個別には特定できません。" +
               "まずこの下の「PLANコメントに確認済み主張が過不足なく割り当てられている」を直してください。"
-            : (over.length ? "確認済みの範囲を超えているID: " + over.join(", ") + "。" : "") +
+            : !overIdentifiable
+            ? "フル版はPLANコメントが無いとID表記だけから超過分を個別には特定できません。" +
+              "PART 1のPLANコメント（<!-- PLAN sec-N: 章題 | C-… -->）を追加するか、この会話の確認済みID一覧と突き合わせてから直してください。"
+            : (overRaw.length ? "確認済みの範囲を超えているID: " + overRaw.join(", ") + "。" : "") +
               "次のどちらかで直してください: (1) これらのIDを引いている文とUNCITED行の記載を削る（対応する主張は本文から外す）、" +
               "または (2) それらが本当に確認済みなら head の rr:confirmed-count を実際の件数へ直す。" +
               "該当PARTと最終PARTを丸ごと出し直してください。");
@@ -2267,10 +2305,11 @@
            （例: 1件欠落＋1件混入で差引ゼロに見えてしまう）ため、PLANという
            実データが取れているときはそちらを優先する */
         var shortfall = (planTrustworthy && missingIds.length) ? missingIds.length : (total - union);
+        var missingRaw = missingIds.map(function (id) { return keepRawId(id, plan17.raw); });
         d17 = shortfall + " 件の主張が本文にもUNCITEDにも現れていません。" +
           "未記載の主張を本文に組み込んで引用するか、UNCITED行へ理由付きで加えて、該当PARTを出し直してください。";
         if (missingIds.length) {
-          d17 += "欠けている主張ID（全 " + missingIds.length + " 件）: " + missingIds.join(", ") +
+          d17 += "欠けている主張ID（全 " + missingIds.length + " 件）: " + missingRaw.join(", ") +
             "。これらをPLANコメントで割り当てた章の本文に書き入れ、その文に [[資料ID|C-ID]] を付けてください" +
             "（列挙は省略していません。1件残らず組み込むか、5%以内ならUNCITED行へ理由付きで加えてください）。";
         } else if (plan17.present && plan17.count && !planTrustworthy) {
@@ -2301,7 +2340,7 @@
         { kind: mild17 ? "warn" : undefined,
           title: okc ? "確認済み件数と本文の記載が一致しています"
                      : mild17 ? "確認した事実の件数が本文とわずかに合いません（本文 " + union + "件／確認済み " + total + "件。差分ID: " +
-                         (union > total ? over.join(", ") : missingIds.join(", ")) + "）。5%以内のため、そのままでも完成できます"
+                         (union > total ? overRaw.join(", ") : missingRaw.join(", ")) + "）。5%以内のため、そのままでも完成できます"
                      : "確認した事実の件数が本文と合いません（本文 " + union + "件／確認済み " + total + "件）",
           missingIds: missingIds,
           next: okc ? "" : mild17 ? "任意: 差分IDを本文かUNCITED行へ追記" : "AIに「不備をコピー」の文面を送る" });

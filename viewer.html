@@ -620,7 +620,9 @@ footer.site-footer a { color: var(--color-mute); }
         var sec = secOf[id];
         var pk = sec ? partOfSec[sec] : 0;
         if (!pk) return;
-        (map[pk] = map[pk] || []).push(id);
+        /* 2026-09-24(viewer第2弾・0詰め保持): 表示はPLANコメントの生表記（0詰め込み）を
+           使う。plan.allのキー（id）自体は突合用のcanon形式のまま変えない */
+        (map[pk] = map[pk] || []).push(plan.raw[id] || id);
         resolved++;
       });
       /* 一部でも解決できなければ、取りこぼしたIDが直らないので採用しない */

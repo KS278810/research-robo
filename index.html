@@ -23,7 +23,7 @@
 <!-- Google Analytics (GA4) — このLPのアクセス解析専用。プロンプトコピーの内容・貼り付けたレポート等（viewer.html/dispatch.html）はここには含まれず、それらのページにはこのスクリプトを入れない。
      本番ホスト名のときだけ発火（ローカル配信・ステージングでの閲覧が本番の計測を汚染しないように） -->
 <script>
-if (location.hostname === 'ks278810.github.io') {
+if (location.hostname === 'ks278810.github.io' && location.pathname.indexOf('/research-robo/') === 0) {
   window.dataLayer = window.dataLayer || [];
   window.gtag = function(){dataLayer.push(arguments);};
   gtag('js', new Date());
@@ -120,7 +120,7 @@ h1, h2, h3, h4 {
 h1 { font-size: var(--fs-h1); line-height: 1.3; }
 h2 { font-size: var(--fs-h2); }
 h3 { font-size: var(--fs-h3); }
-p { margin: 0; }
+p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .nowrap-jp { display: inline-block; white-space: nowrap; }
 
 :focus-visible {
@@ -935,7 +935,7 @@ p { margin: 0; }
         <span class="eyebrow">無料・登録不要</span>
         <h1>エンジニアのための<br><span class="hero-highlight">ベンチマーク調査</span>ツール</h1>
         <p class="hero-sub">
-          Deep Researchの回答を、出典を1件ずつ監査した証拠ベースのレポートへ。技術動向から競合調査まで。
+          Deep Researchの回答を、出典を1件ずつ監査したレポートへ。技術動向から競合調査まで。
         </p>
       </div>
 
@@ -950,7 +950,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット1つ＋ビューア・作業約10分<br>（広いテーマは自動分割／容量の大きいAIで）</span>
+            <span class="copy-choice-note">調査チャット＋ビューア・作業約10分<br>（広いテーマは自動分割／大容量AIで）</span>
           </div>
         </div>
         <p class="copy-fallback" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
@@ -1168,7 +1168,7 @@ p { margin: 0; }
         <div class="howto-num"><img src="assets/images/mascot/mascot-point.webp" alt="指差しをするResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>2. 手軽に試す：「OK」→太字の言葉を返すだけ</h3>
-          <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは画面に太字で出る言葉（「次」「レポート」など）をそのまま返すだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼ると、その場でPDFにできます。</p>
+          <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは画面に太字で出る言葉（「次」「レポート」など）をそのまま返すだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼れば、その場でPDFに。</p>
         </div>
       </div>
       <div class="howto-item">
@@ -1204,7 +1204,7 @@ p { margin: 0; }
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>参考文献の一覧から原資料へリンク</li>
       </ul>
       <a class="btn btn-outline" href="benchmark-report-sample.pdf" target="_blank" rel="noopener">実例レポートをPDFで見る・15ページ</a>
-      <p class="report-caveat">※ Research KITで実際に作成した衝突安全ベンチマーク調査レポートの公開版です。企業名はA社〜M社にマスキングしています。A4横・引用番号つきというレポート書式はKIT本文に定義済みで、追加ファイルなしで再現されます。</p>
+      <p class="report-caveat">※ Research KITで実際に作成した衝突安全ベンチマーク調査レポートの公開版です（企業名はA社〜M社にマスキング）。A4横・引用番号つきの書式はKIT本文に定義済みで、追加ファイルは不要です。</p>
     </div>
     <div class="report-flip" id="report-flip">
       <div class="rf-stage" id="rf-stage" tabindex="0" role="group" aria-roledescription="ページめくりビューア" aria-label="実例レポートのページめくりビューア。左右の矢印キーでページを移動できます">
@@ -1343,7 +1343,7 @@ p { margin: 0; }
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット1つ＋ビューア・作業約10分<br>（広いテーマは自動分割／容量の大きいAIで）</span>
+            <span class="copy-choice-note">調査チャット＋ビューア・作業約10分<br>（広いテーマは自動分割／大容量AIで）</span>
           </div>
         </div>
         <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
@@ -1712,7 +1712,7 @@ p { margin: 0; }
       var failLabel = isShort ? '再試行' : 'コピー失敗';
       var failStatus = isShort ? 'コピーに失敗しました。もう一度お試しください。' : 'コピーに失敗しました。下のリンクからKITファイルをダウンロードして添付してください。';
       var noteEl = btn.parentElement ? btn.parentElement.querySelector('.copy-choice-note') : null;
-      var originalNote = noteEl ? noteEl.textContent : '';
+      var originalNote = noteEl ? noteEl.innerHTML : '';
       var place = btn.closest('#hero-copy-box') ? 'hero' : (btn.closest('.cta-final') ? 'cta' : (btn.closest('#faq') ? 'faq' : 'other'));
       var finished = false;
       var done = function (ok, message) {
@@ -1725,7 +1725,7 @@ p { margin: 0; }
           btn.removeAttribute('data-copied');
           if (isShort) btn.disabled = false; else setCopyBusy(false);
           btn.removeAttribute('aria-busy');
-          if (noteEl) { noteEl.textContent = originalNote; }
+          if (noteEl) { noteEl.innerHTML = originalNote; }
         }, ok ? 1800 : 2600);
         btn.textContent = ok ? 'コピーしました' : (message || failLabel);
         btn.setAttribute('data-copied', ok ? 'true' : 'false');

@@ -420,7 +420,7 @@
       var body = m[1].trim();
       if (/^none$/i.test(body) || body === "") { out.none = true; continue; }
       splitOutsideParens(body).forEach(function (piece) {
-        var t = piece.trim();
+        var t = toHalfDigits(piece.trim());
         if (!t) return;
         var idm = t.match(/^(C-[A-Za-z0-9_-]+)/);
         if (!idm) { out.unparsed.push(t); return; }
@@ -689,7 +689,7 @@
       var fields = String(m[2]).split("|");
       var best = null;
       fields.forEach(function (f) {
-        var toks = f.match(/C-\d+(?:-\d+)*/g) || [];
+        var toks = toHalfDigits(f).match(/C-\d+(?:-\d+)*/g) || [];
         if (toks.length && (!best || toks.length > best.length)) best = toks;
       });
       if (!best) continue;

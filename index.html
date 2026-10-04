@@ -315,7 +315,15 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   align-items: center;
 }
 @media (max-width: 780px) {
-  .hero-top { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr)にしないと、grid item既定のmin-width:autoにより
+     h1(keep-all)の未分割トークンがそのまま列幅を押し広げてしまう
+     （2026-10-03、/my-audit 2回目・L8で320px幅のはみ出しとして発見） */
+  .hero-top { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 360px) {
+  /* h1は keep-all のため「ベンチマーク調査ツール」は分割されない単一トークンになる。
+     極小幅ではフォントサイズを下げて1行の幅をコンテナ内に収める */
+  :root { --fs-h1: clamp(1.4rem, 1.1rem + 2.6vw, 2rem); }
 }
 
 .hero-copy .eyebrow { color: var(--color-accent); margin-bottom: 0.5rem; }
@@ -715,7 +723,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .rf-count { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-main); }
 .rf-hint { font-size: 0.75rem; }
 @media (max-width: 780px) {
-  .report-wrap { grid-template-columns: 1fr; }
+  /* .hero-topと同じ理由（2026-10-03、L8）: minmax(0, 1fr)でgrid itemの
+     intrinsic min-widthによる列幅の押し広げを防ぐ */
+  .report-wrap { grid-template-columns: minmax(0, 1fr); }
   .rf-hint { display: none; }
 }
 

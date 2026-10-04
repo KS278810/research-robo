@@ -44,8 +44,10 @@ Geminiは長文の貼り付けが不安定な場合があります。その場�
 
 `git clone` したままの内容を編集なしで社内に配信できます: Docker（`cd hosting && docker compose up -d --build`）、
 Python 3だけのスクリプト（`python3 hosting/serve.py 8080 --host 0.0.0.0`）、GitHub Enterprise Server / GitLab
-Pages のいずれでも対応しています。手順・注意点は [`hosting/README-hosting.md`](./hosting/README-hosting.md)
-を参照してください。コピーされるプロンプト内のビューアURL等は配信元のURLに自動で置き換わります。
+Pages のいずれでも対応しています。手順・注意点は [`hosting/README-hosting.md`](https://github.com/KS278810/research-robo/blob/main/hosting/README-hosting.md)
+を参照してください（相対リンクだと、このREADME自体が配信された自己ホスト環境では
+`hosting/`配下が意図的に配信拒否されており404になるため、GitHubの絶対URLにしている）。
+コピーされるプロンプト内のビューアURL等は配信元のURLに自動で置き換わります。
 
 ## ライセンス
 

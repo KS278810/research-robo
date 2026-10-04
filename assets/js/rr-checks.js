@@ -297,7 +297,10 @@
      KITのテンプレートが付与するdata属性（data-source-type / data-claim /
      meta[name="rr:confirmed-count"]）を使う。付与しない旧テンプレでも壊れないよう、
      属性が無い場合は「対象なし」または情報行にとどめ、badにはしない。 */
-  function digitsOf(s) { return String(s == null ? "" : s).replace(/[^0-9]/g, ""); }
+  /* 2026-10-03(/my-audit 2回目・L5): 全角数字をそのまま削ってしまうと、全角で書かれた
+     rr:confirmed-count等の値が読み取れなくなる（「値を読み取れません」の誤検知）。
+     toHalfDigitsで半角化してから非数字を除く */
+  function digitsOf(s) { return toHalfDigits(s).replace(/[^0-9]/g, ""); }
 
   /* 日付らしい並びを YYYYMM(DD) の列へ正規化する。「2026年8月27日」「2026/8/27」
      「2026-08-27」を同一視し、表紙が自然な日本語表記でもmetaと一致と判定する
@@ -684,12 +687,18 @@
       /* digitsOfは全角数字を「削除」してしまう（sec-２ → sec:0）。半角化してから読む */
       var sec = parseInt(toHalfDigits(m[1]), 10);
       /* 欄は「章題 | ID列 [| 約n字]」。ID列の欄は「C-数字 形式のIDが最も多い欄」を選ぶ。
-         章題に SiC-MOSFET / PoC-検証 のような「C-」を含む語があっても、数字で始まらない
-         トークンはIDとして数えないので取り違えない */
+         章題に SiC-MOSFET / PoC-検証 / SiC-1200V のような「英字+C-数字」を含む語があると、
+         単純な /C-\d+/ だけでは章題中のそれも1トークンとして拾ってしまい、章題欄がID欄より
+         ID数で勝って幽霊ID（C-1200等）を作ってしまう（2026-10-03、全角数字対応の拡張で
+         SiC-１２００V等にも波及すると判明）。「C-」の直前が英数字・アンダースコアでない
+         （欄の先頭、または空白・カンマ・読点等の区切り文字の直後）場合だけIDとして拾う */
       var fields = String(m[2]).split("|");
       var best = null;
       fields.forEach(function (f) {
-        var toks = toHalfDigits(f).match(/C-\d+(?:-\d+)*/g) || [];
+        var hf = toHalfDigits(f);
+        var toks = [];
+        var idRe = /(?:^|[^A-Za-z0-9_])(C-\d+(?:-\d+)*)/g, im;
+        while ((im = idRe.exec(hf))) toks.push(im[1]);
         if (toks.length && (!best || toks.length > best.length)) best = toks;
       });
       if (!best) continue;

@@ -615,6 +615,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-choice-item { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex: 1 1 220px; max-width: 260px; }
 .copy-choice-note { font-size: var(--fs-small); color: var(--color-sub-text); font-weight: 700; }
 @media (max-width: 520px) { .copy-choice { flex-direction: column; align-items: stretch; } .copy-choice-item .btn { width: 100%; justify-content: center; } }
+/* ヒーロー・最下部CTAの2ボタンは画面幅によらず常に上下に積む（中間幅で左右に並んで窮屈になるのを防ぐ） */
+.copy-choice { flex-direction: column; align-items: center; }
+.copy-choice-item { flex: none; width: 100%; }
 .howto-body .howto-note { margin-top: 0.55rem; font-size: var(--fs-small); line-height: 1.75; color: var(--color-text); background: var(--color-bg); border-left: 3px solid var(--color-sub); padding: 0.6rem 0.8rem; border-radius: 0 6px 6px 0; }
 @media (max-width: 600px) {
   .howto-item { grid-template-columns: 56px 1fr; gap: 1rem; }

@@ -324,6 +324,14 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   /* h1は keep-all のため「ベンチマーク調査ツール」は分割されない単一トークンになる。
      極小幅ではフォントサイズを下げて1行の幅をコンテナ内に収める */
   :root { --fs-h1: clamp(1.4rem, 1.1rem + 2.6vw, 2rem); }
+  /* 2026-10-14(監査・vistestに320pxを追加して発見): 「実例レポートをPDFで見る・15ページ」は
+     nowrapのまま307px幅になり、コンテナ(280px)の右へ約8pxはみ出して端が切れていた
+     （本番HEADでも同じ。横スクロールはbody overflow-x:hiddenで出ないが見た目が欠ける）。
+     極小幅では折り返しを許す。コピー系ボタンは文言長を別規則で管理しているので対象外 */
+  .btn-outline { padding-inline: 0.5rem; font-size: 0.875rem; max-width: 100%; text-align: center; }
+  /* 1行に収める（14px・左右余白0.5remで約258px、コンテナ280px）。万一のフォント差で溢れる場合だけ
+     折り返し、語の途中（「15ペ/ージ」）で切れないよう均等割りにする */
+  @supports (text-wrap: balance) { .btn-outline { white-space: normal; text-wrap: balance; word-break: auto-phrase; } }
 }
 
 .hero-copy .eyebrow { color: var(--color-accent); margin-bottom: 0.5rem; }
@@ -353,7 +361,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 /* inline-blockはベースライン揃えなので、下端に行ボックス由来の隙間が出る。
    vertical-align:top で消す */
 .cta-final .copy-box { display: inline-block; vertical-align: top; width: auto; text-align: center; padding: 0.85rem 0.9rem; }
-.copy-box-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; }
+/* 2026-10-09: 最下部CTAの枠・ボタンを中央揃えにしたのに合わせ、枠の見出し行も中央寄せ（以前はspace-between） */
+.copy-box-head { display: flex; align-items: center; justify-content: center; text-align: center; margin-bottom: 0.65rem; }
 .copy-box-label { font-size: 0.8125rem; font-weight: 700; color: var(--color-sub-text); letter-spacing: 0.04em; }
 .copy-box pre {
   margin: 0 0 0.8rem;
@@ -376,6 +385,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 /* 最下部CTAのボタンはヒーローと同じく均等幅（.copy-choice-item の flex に従う）。
    以前は width:auto でラベルの字数だけで幅が決まり、2つのボタンが不揃いだった */
 .cta-final .main-copy-btn { padding-block: 1rem; font-size: 1.0625rem; }
+/* 最下部CTAは枠・ボタンとも通常(260px)の1.5倍幅。狭い画面では画面幅に収める */
+.cta-final .copy-choice-item { width: min(390px, calc(100vw - 5rem)); max-width: none; }
 @media (max-width: 480px) {
   .launch-row { flex-direction: column; }
 }
@@ -1137,21 +1148,21 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     <div class="problem-grid">
       <div class="problem-card reveal" style="--i:0">
         <div class="problem-mascot" aria-hidden="true">
-          <img src="assets/images/mascot/mascot-confused.webp" alt="">
+          <img loading="lazy" src="assets/images/mascot/mascot-confused.webp" alt="">
         </div>
         <h3>出典があいまいなまま</h3>
         <p>どの資料の、どの記述にもとづくのかが分からないまま、結論だけが返ってくる。</p>
       </div>
       <div class="problem-card reveal" style="--i:1">
         <div class="problem-mascot" aria-hidden="true">
-          <img src="assets/images/mascot/mascot-dizzy.webp" alt="">
+          <img loading="lazy" src="assets/images/mascot/mascot-dizzy.webp" alt="">
         </div>
         <h3>一度の検索で終わる</h3>
         <p>複数の切り口を横断できず、本来確認すべき情報の抜け漏れに気づけない。</p>
       </div>
       <div class="problem-card reveal" style="--i:2">
         <div class="problem-mascot" aria-hidden="true">
-          <img src="assets/images/mascot/mascot-block.webp" alt="">
+          <img loading="lazy" src="assets/images/mascot/mascot-block.webp" alt="">
         </div>
         <h3>調べきれていないのに「ない」と断定</h3>
         <p>検索で見つからなかっただけの情報が、いつのまにか「存在しない」という言い切りに変わってしまう。</p>
@@ -1170,7 +1181,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     </div>
     <div class="howto-list">
       <div class="howto-item">
-        <div class="howto-num"><img src="assets/images/mascot/mascot-clipboard.webp" alt="クリップボードを持つResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-clipboard.webp" alt="クリップボードを持つResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>1. コピーして、貼って、送信（共通）</h3>
           <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。調べたいテーマを聞かれるので、一文で答えます。</p>
@@ -1178,14 +1189,14 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         </div>
       </div>
       <div class="howto-item">
-        <div class="howto-num"><img src="assets/images/mascot/mascot-point.webp" alt="指差しをするResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-point.webp" alt="指差しをするResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>2. 手軽に試す：「OK」→太字の言葉を返すだけ</h3>
           <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは画面に太字で出る言葉（「次」「レポート」など）をそのまま返すだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼れば、その場でPDFに。</p>
         </div>
       </div>
       <div class="howto-item">
-        <div class="howto-num"><img src="assets/images/mascot/mascot-report.webp" alt="レポートを掲げるResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-report.webp" alt="レポートを掲げるResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>3. しっかり調べる：調査チャットで実行し、結果を戻す</h3>
           <p><strong>確認する</strong>：目的・対象・本数を確認し「OK」。調査プロンプトが届きます。<br>
@@ -1364,7 +1375,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       </div>
     </div>
     <div class="cta-final-visual reveal" style="--i:1">
-      <img class="mascot-breathe" src="assets/images/mascot/mascot-wave.webp" alt="手を振るResearchRoboのロボマスコット">
+      <img loading="lazy" class="mascot-breathe" src="assets/images/mascot/mascot-wave.webp" alt="手を振るResearchRoboのロボマスコット">
     </div>
   </div>
 </section>

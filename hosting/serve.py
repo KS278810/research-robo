@@ -99,7 +99,10 @@ class Handler(SimpleHTTPRequestHandler):
         rel = posixpath.normpath(unquote(urlsplit(path).path)).lstrip("/")
         if rel == ".":
             rel = ""
-        if rel.startswith("..") or ":" in rel:
+        # 2026-10-14 (audit B6): a NUL byte (%00) makes os.path.realpath raise
+        # ValueError, which escaped the handler and dropped the connection
+        # instead of answering 404. Deny it up front like any other bad path.
+        if "\x00" in rel or rel.startswith("..") or ":" in rel:
             return self._deny()
         if _denied(rel):
             return self._deny()

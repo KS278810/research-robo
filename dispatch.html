@@ -356,12 +356,6 @@ footer.site-footer a { color: var(--color-mute); }
     return blocks;
   }
 
-  function lastHead(text) {
-    var head = null, hm;
-    RE_HEAD_G.lastIndex = 0;
-    while ((hm = RE_HEAD_G.exec(text))) head = hm;
-    return head;
-  }
   function allHeads(text) {
     var out = [], hm;
     RE_HEAD_G.lastIndex = 0;
@@ -370,7 +364,7 @@ footer.site-footer a { color: var(--color-mute); }
   }
   /* 1つのフェンスにEnvelopeが複数本まとめて入っていることがある。MODE: WORKERの
      直前で分割し、そのフェンス直前までに現れた見出し群と後ろから順に対応付ける
-     （1本だけの場合は従来のlastHeadと同じ結果になる） */
+     （1本だけの場合は見出しが1つだけになる） */
   var RE_WORKER_SPLIT = /^(?=MODE[ \t]*[:：][ \t]*WORKER)/m;
 
   function cleanBody(text) {
@@ -409,10 +403,16 @@ footer.site-footer a { color: var(--color-mute); }
       var heads = allHeads(lines.slice(prevEnd, b.start).join("\n"));
       var chunks = b.body.split(RE_WORKER_SPLIT).filter(function (c) { return RE_WORKER.test(c); });
       chunks.forEach(function (c, k) {
-        /* 見出しはフェンス直前にまとまっているのが通常なので、末尾の見出しから
-           チャンク数ぶんを逆順に割り当てる（1本だけなら従来どおり最後の見出し） */
-        var hi = heads.length - chunks.length + k;
-        found.push({ body: c.trim(), head: hi >= 0 ? heads[hi] : null });
+        /* 見出しはフェンス直前にまとまっているのが通常なので、1本だけなら最後の見出し
+           （前置きに別の【k/n】があっても取り違えない）。複数本のときは見出し数と
+           チャンク数が一致する場合だけ順に対応付ける。
+           2026-10-14(監査・B5): 一致しない場合に末尾から詰めて割り当てると、見出しが
+           足りないときは番号重複・見出しが多いときは1つ目が捨てられて番号が1つずれて
+           いた。合わないときは見出しを当てず、担当欄と WP の並び順にフォールバックする */
+        var head = null;
+        if (chunks.length === 1) head = heads.length ? heads[heads.length - 1] : null;
+        else if (heads.length === chunks.length) head = heads[k];
+        found.push({ body: c.trim(), head: head });
       });
       prevEnd = b.end + 1;
     });

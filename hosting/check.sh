@@ -60,6 +60,9 @@ expect "assets/" 404
 # ホスト先によって正しい挙動が違うため、ここでは失敗扱いにせず参考情報として出す
 _gi_code="$(curl -s -o /dev/null -w '%{http_code}' "${BASE}.gitignore" 2>/dev/null)"
 echo "INFO: .gitignore -> ${_gi_code}（社内配信=404を推奨、GitHub Pages=200は既知で問題なし）"
+# /healthz は nginx（Docker）のみが持つ。serve.py・GitHub Pages では404になるのが正しいので参考情報として出す
+_hz_code="$(curl -s -o /dev/null -w '%{http_code}' "${BASE}healthz" 2>/dev/null)"
+echo "INFO: healthz -> ${_hz_code}（Docker/nginx=200を期待、serve.py・GitHub Pagesの404は正常）"
 
 echo
 echo "=== KITミラーのバイト一致 ==="

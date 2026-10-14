@@ -1034,14 +1034,15 @@ footer.site-footer a { color: var(--color-mute); }
   }
 
   /* 2026-09-03(バグ再修正・A12): 完結済み（receiptあり）のブロックが完全に同一なら
-     蓄積しない（同じ結果一覧を2回貼った場合の二重化防止）。分割途中のブロック
-     （receipt無し）は常に別物として積む */
+     蓄積しない（同じ結果一覧を2回貼った場合の二重化防止）。
+     2026-10-14(監査・B2): 分割途中のブロック（receipt無し）も、wp・RESULT_PART k/n・
+     C行の内容まで完全に同一なら積まない（RR.resultBlockSignature。「常に別物」だと
+     貼り直しで台帳が倍増し、再開用の末尾英字が誤って付いていた）。内容の違う分割
+     ブロックは従来どおり全て積む */
   function pushResultListBlock(rl) {
-    if (rl.receipt) {
-      var sig = (rl.wp || "") + "|" + rl.receipt + "|" + rl.claimCount;
-      var dup = resultListStore.some(function (b) { return b.receipt && ((b.wp || "") + "|" + b.receipt + "|" + b.claimCount) === sig; });
-      if (dup) return false;
-    }
+    var sig = RR.resultBlockSignature(rl);
+    var dup = resultListStore.some(function (b) { return RR.resultBlockSignature(b) === sig; });
+    if (dup) return false;
     resultListStore.push(rl);
     return true;
   }

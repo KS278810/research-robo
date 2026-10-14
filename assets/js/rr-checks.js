@@ -382,7 +382,9 @@
        付録・参考文献・免責の外にあるdata-claim付きアンカー全体を対象にする */
     Array.prototype.forEach.call(doc.querySelectorAll("a[data-claim]"), function (a) {
       if (!notInAppendix(a)) return;
-      String(a.getAttribute("data-claim") || "").split(/[\s,]+/).forEach(function (tok) {
+      /* 2026-10-14(監査・B4): 全角の、，；も区切りとして扱う（parsePlanは非英数字を境界に
+         しているため、ここだけ半角限定だと同じ文書内で引用済み判定が食い違う） */
+      String(a.getAttribute("data-claim") || "").split(/[\s,、，;；]+/).forEach(function (tok) {
         if (/^C-/.test(tok)) {
           var id = canonId(tok);
           set[id] = true;
@@ -471,7 +473,7 @@
   function parseResultList(raw) {
     var rawStr = String(raw || "").replace(/﻿/g, "");
     var lines = rawStr.split(/\r?\n/);
-    var sources = {}, claims = [], unconfirmed = [], receipt = "", wp = "";
+    var sources = {}, claims = [], unconfirmed = [], receipt = "", wp = "", part = "";
     /* 2026-09-03(完成前の最終洗い出し・F5): §7.3の変換結果が60行超で分割されると、
        途中のブロックは`RESULT_COMPLETE`ではなく先頭行`RR-RESULT | … | WP_ID: WP1 | …`
        と末尾`RESULT_PART: {wp} k/n`だけを持つ。従来はwpの手がかりがRESULT_COMPLETE
@@ -526,14 +528,16 @@
         return;
       }
       /* 分割ブロック(k<n)の末尾行。RESULT_COMPLETEが無い代わりにこれがwp源になる */
-      var mPart = t.match(/^RESULT_PART\s*[:：]\s*(\S+?)\s+\d+\s*\/\s*\d+/i);
+      var mPart = t.match(/^RESULT_PART\s*[:：]\s*(\S+?)\s+([0-9０-９]+)\s*[\/／]\s*([0-9０-９]+)/i);
       if (mPart) {
         var wpPartRaw = mPart[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
         wp = /^\d+$/.test(wpPartRaw) ? String(parseInt(wpPartRaw, 10)) : wpPartRaw;
+        /* 2026-10-14(監査・B2): 分割途中ブロックの k/n も返す（同一ブロック再貼付の判定に使う） */
+        part = parseInt(toHalfDigits(mPart[2]), 10) + "/" + parseInt(toHalfDigits(mPart[3]), 10);
         return;
       }
     });
-    return { sources: sources, claims: claims, unconfirmed: unconfirmed, receipt: receipt, wp: wp,
+    return { sources: sources, claims: claims, unconfirmed: unconfirmed, receipt: receipt, wp: wp, part: part,
              claimCount: claims.length, sourceCount: Object.keys(sources).length };
   }
 
@@ -545,6 +549,20 @@
   function ledgerClaimId(block, claim) {
     var wp = (block && block.wp) || "";
     return canonId("C-" + (wp ? wp + "-" : "") + claim.cNum);
+  }
+
+  /* 2026-10-14(監査・B2): 結果一覧ブロックの同一性の署名。viewer（蓄積時）と
+     buildLedgerHtml（台帳生成時）が同じ基準で「同じブロックの2回貼り」を弾く。
+     - RECEIPT あり（完結ブロック）: wp|receipt|件数（従来どおり）
+     - RECEIPT なし（RESULT_PART k/n の分割途中、または断片）: wp|part|各C行のcNumと主張文
+       （§8.3の「PART 2以降でC番号が1から再開」は主張文が違うので別物として残る）
+     従来は RECEIPT 無しを「常に別物」として積んでいたため、同じ分割途中ブロックを
+     貼り直すと台帳が倍増し、再開用の末尾英字（C-1-1b）が誤って付いていた */
+  function resultBlockSignature(b) {
+    if (b.receipt) return "R|" + (b.wp || "") + "|" + b.receipt + "|" + ((b.claims || []).length);
+    return "P|" + (b.wp || "") + "|" + (b.part || "") + "|" +
+      (b.claims || []).map(function (c) { return c.cNum + ":" + (c.claim || ""); }).join("\u0001") +
+      "|" + Object.keys(b.sources || {}).sort().join(",");
   }
 
   /* 結果一覧のテキストかどうか（PART・完成レポートとは排他）。S/C/N/RECEIPT行が
@@ -612,8 +630,8 @@
        末尾英字（C-1-1b）で区別する。ブロック単位で先に完全再貼付だけを弾く */
     var blockSeen = {};
     var survivingBlocks = blocks.filter(function (b) {
-      if (!b.receipt) return true;
-      var sig = (b.wp || "") + "|" + b.receipt + "|" + (b.claims || []).length;
+      /* 2026-10-14(監査・B2): RECEIPT 無しの分割途中ブロックも resultBlockSignature で同一判定 */
+      var sig = resultBlockSignature(b);
       if (blockSeen[sig]) return false;
       blockSeen[sig] = true;
       return true;
@@ -1353,9 +1371,32 @@
      runChecksの許可外タグ検査側でだけ[style]/[onclick]を追加する */
   var BODY_FORBIDDEN_SEL = 'style, link, img, iframe, object, embed, script:not([type="application/ld+json"]), ' +
     'base, meta[http-equiv]:not([http-equiv="Content-Type" i]), video, audio, source, track, ' +
-    'svg image, svg use, form, input, button, picture';
+    'svg image, svg use, form, input, button, picture, noscript, template';
+  /* 2026-10-14(監査・B1-a/B1-d): noscript/template を追加。<noscript>はDOMParser（scripting無効）
+     では子要素として解析されるが、ダウンロードHTMLをブラウザで開く（scripting有効）と
+     中身は生テキスト扱いになり、属性値に書かれた `</noscript><img onerror=…>` が実体化する
+     （mXSS）。<template>の中身は querySelectorAll で辿れず属性ストリップが届かない。
+     どちらもレポートに正当な用途が無いので要素ごと削除する */
   /* 危険とみなすURLスキーム。data:はHTML文書を丸ごと埋め込めるため<script>と同等に扱う */
   var RE_DANGEROUS_SCHEME = /^(mailto:|tel:|javascript:|data:|blob:|vbscript:)/i;
+  /* 2026-10-14(監査・B1-b): WHATWG URLパーサは先頭・末尾のC0制御文字/空白と、内部のタブ・
+     改行を取り除いてからスキームを読むため、`\x01javascript:` や `java\tscript:` は
+     ブラウザでは javascript: として動く。getAttribute() は実体参照（&#x09;）を展開済み
+     なので、制御文字・空白を全て除去してから判定すれば同じ正規化になる。
+     sanitizeForbiddenAndSchemes（解除）と check「許可外リンク」（検出）の両方がこれを使う */
+  function isDangerousHref(h) {
+    var s = String(h == null ? "" : h).replace(/[\u0000-\u0020\u007f]/g, "");
+    return RE_DANGEROUS_SCHEME.test(s);
+  }
+  /* 要素が持つリンク属性（href / xlink:href）のうち危険なものの属性名を返す。無ければ null */
+  function dangerousLinkAttr(el) {
+    var found = null;
+    Array.prototype.forEach.call(el.attributes, function (at) {
+      if (found) return;
+      if (/^(xlink:)?href$/i.test(at.name) && isDangerousHref(at.value)) found = at.name;
+    });
+    return found;
+  }
 
   /* R3+R4を共通化: 許可外タグ・危険スキームのリンクを取り除く。autoRepair（v5.1文書）と
      sanitizeOnly（legacy文書）の両方から呼ぶ。out.removedTags/strippedAttrs/unwrapped を
@@ -1394,9 +1435,13 @@
        （表示テキストは残す）。2026-09-04(HIGH-6): data:/blob:/vbscript:を追加
        （data:はHTML文書ごと埋め込める・blob:はダウンロードHTML内で任意コンテンツを
        参照しうる・vbscript:は古いIEのみだが用途が無い） */
-    Array.prototype.filter.call(doc.querySelectorAll("a[href]"), function (a) {
+    /* 2026-10-14(監査・B1-b/B1-c): 判定を isDangerousHref に統一（制御文字・タブ入りの
+       偽装スキームも解除）。SVG内の <a> は href ではなく xlink:href を使うことがあり、
+       <animate>/<set> は attributeName="href" で後から href を書き込めるため、
+       a[href] 以外も対象にする */
+    Array.prototype.filter.call(doc.querySelectorAll("a"), function (a) {
+      if (dangerousLinkAttr(a)) return true;
       var h = (a.getAttribute("href") || "").trim();
-      if (RE_DANGEROUS_SCHEME.test(h)) return true;
       if (/^https?:/i.test(h)) return !(a.closest && a.closest(".references, .appendix, .disclaimer"));
       return false;
     }).forEach(function (a) {
@@ -1405,6 +1450,24 @@
       while (a.firstChild) parent.insertBefore(a.firstChild, a);
       parent.removeChild(a);
       out.unwrapped++;
+    });
+    /* <a> 以外の要素（svg の <text> 等）に付いた危険な href/xlink:href は属性だけ外す */
+    Array.prototype.slice.call(doc.querySelectorAll("*")).forEach(function (el) {
+      if (el.tagName.toLowerCase() === "a") return;
+      var name = dangerousLinkAttr(el);
+      if (name) { el.removeAttribute(name); out.strippedAttrs++; }
+    });
+    /* SVGアニメーションで href を書き換えるもの（animate/set の values/to/from に危険スキーム）は要素ごと削除 */
+    Array.prototype.slice.call(doc.querySelectorAll("animate, set, animateMotion")).forEach(function (el) {
+      /* attributeName の前後空白は無視して判定する（レビュー指摘）。on* への書き込みは
+         SMILで効かないが、属性として残す理由も無いので同じく削除する */
+      var target = (el.getAttribute("attributeName") || "").replace(/\s+/g, "");
+      var vals = [el.getAttribute("values"), el.getAttribute("to"), el.getAttribute("from"), el.getAttribute("by")];
+      var bad = vals.some(function (v) { return v != null && String(v).split(";").some(isDangerousHref); });
+      if ((/href$/i.test(target) && bad) || /^on/i.test(target)) {
+        out.removedTags.push(el.tagName.toLowerCase());
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }
     });
     /* 2026-09-04(第4回徹底監査・MEDIUM-17): 手書きのtarget="_blank"にrel="noopener"が
        無いと、開いた別タブから window.opener 経由でこのページを操作できてしまう
@@ -1521,7 +1584,9 @@
     var out = { html: s, cites: 0, refs: 0, changed: false };
 
     s = replaceUnmasked(s, maskRegionsAndTags(s), RE_COMPACT_CITE, function (all, inner) {
-      var items = inner.split(";");
+      /* 2026-10-14(監査・B3): 全角の；でも並列引用として分割する（全角数字対応と同系統のAI逸脱。
+         半角のみだと [[1-7|C-1-12；2-3|C-2-01]] が1本のアンカーになり資料2-3とC-2-01が消えていた） */
+      var items = inner.split(/[;；]/);
       var as = [], left = [];
       /* 2026-09-03(7回目・初実走FB): 同じ資料IDが1つの[[…]]内で繰り返される
          （例: [[1|C-1;2|C-2;2|C-3]]）と、実走のPDFで"[1][2][2]"のような連続番号に
@@ -2210,11 +2275,13 @@
                           : "本文に直接リンクはありません" });
 
     // 新規: 許可外リンク（mailto:/tel:/javascript:）はどこにも書けない（.disclaimer含む）
-    var badScheme = Array.prototype.filter.call(doc.querySelectorAll("a[href]"), function (a) {
-      return RE_DANGEROUS_SCHEME.test((a.getAttribute("href") || "").trim());
+    /* 2026-10-14(監査・B1-b): 解除側（sanitizeForbiddenAndSchemes）と同じ isDangerousHref /
+       dangerousLinkAttr で判定し、制御文字入りや xlink:href の偽装を検出漏れしない */
+    var badScheme = Array.prototype.filter.call(doc.querySelectorAll("a"), function (a) {
+      return !!dangerousLinkAttr(a);
     });
     addResult(results, badScheme.length === 0, "許可外リンク（mailto:/tel:/javascript:/data:/blob:/vbscript:）が使われていない",
-      badScheme.length ? "検出: " + badScheme.slice(0, 5).map(function (a) { return a.getAttribute("href"); }).join(", ") : "",
+      badScheme.length ? "検出: " + badScheme.slice(0, 5).map(function (a) { return a.getAttribute(dangerousLinkAttr(a)); }).join(", ") : "",
       { title: badScheme.length ? "使ってはいけない種類のリンク（メール・電話など）が入っています"
                                 : "リンクの種類に問題はありません" });
 
@@ -2565,6 +2632,7 @@
     citedClaimSet: citedClaimSet,
     parseUncited: parseUncited,
     parseResultList: parseResultList,
+    resultBlockSignature: resultBlockSignature,
     looksLikeResultList: looksLikeResultList,
     buildLedgerHtml: buildLedgerHtml,
     parseParts: parseParts,

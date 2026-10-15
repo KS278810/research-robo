@@ -474,8 +474,12 @@
      以前は別実装で、箇条書き・番号付き・太字・セル区切りをdispatchだけが剥がしていた
      ため、同じ結果一覧をdispatchは受理してもviewerは「断片です」と誤判定していた） */
   function normResultListLine(line) {
-    var t = String(line == null ? "" : line).replace(/｜/g, "|").trim();
+    /* 2026-10-15(wide監査A): ゼロ幅文字（U+200B〜200D・2060・FEFF）・引用記号「> 」・全角英字の行頭を、行を捨てずに読む
+       （PART側は既にゼロ幅を除いている。仕様書§8.3は「> 」を捨てると定めている） */
+    var t = String(line == null ? "" : line).replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/｜/g, "|").trim();
+    t = t.replace(/^(?:>\s*)+/, "");
     t = toHalfDigits(t);
+    t = t.replace(/^[Ａ-Ｚａ-ｚ]/, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
     var hadLeadingPipe = /^\|/.test(t);
     t = t.replace(/^\|\s*/, "");
     if (hadLeadingPipe) t = t.replace(/\s*\|$/, "");
@@ -1224,6 +1228,65 @@
      本文の末尾が閉じタグ（</section>|</div>|</html>）で終わっている」場合のみ受理する。
      閉じタグで終わっていなければ、次マーカーが続いていても truncated（途中で切れている） */
   var RE_CLOSED_TAG_END = /<\/(?:section|div|html)>\s*$/i;
+  /* PARTが「途中で切れている」か（partStatus と、取り込み時の繰り返し回数の計数が同じ判定を使う）。
+     RR-END が有る／次マーカーが続き本文が閉じタグで終わる／最終PARTが </html> で終わる、のどれでもなければ途中切れ */
+  function isPartTruncated(p, k, n) {
+    if (!p || p.hasEnd) return false;
+    var trimmedBody = String(p.body || "").trim();
+    var lastOk = (k === n) && /<\/html>\s*$/i.test(trimmedBody);
+    var softOk = p.endedByNextMarker && RE_CLOSED_TAG_END.test(trimmedBody);
+    return !(softOk || lastOk);
+  }
+  /* 2026-10-15: 同じPARTが繰り返し途中で切れるとき（出力上限の小さい無料枠で起きる）、毎回同じ
+     「出し直して」を案内すると、AIが同じ長さで再出力し同じ位置で切れる往復が無限に続く。
+     p.trunc（同じkが連続して途中切れで届いた回数。取り込み時に数える）に応じて案内を変える:
+       1回目: 従来どおり出し直し → 2回目: 2つに分けて出し直す（総数+1・1PARTの字数の目安つき）→
+       3回目以降: 容量の大きいAIへの切り替えを勧める。分割は章の境界でしかできないため、1章が単独で
+       上限を超える場合は梯子では解けない（3回目の案内がその出口）。届いた文字数 X の7割を千の位で切り下げた値
+       （最小2,000字）を目安Yとして示す */
+  /* 2026-10-15(wide監査B1): 分割（総数の増加）に従った後の新しいPARTがまた切れたとき、カウンタが1回目に戻って
+     分割を総数16まで繰り返し勧め続けていた（実行再現）。取り込み側（viewer.html）が、分割後に切れて届いたPARTは
+     分割を1回試したものとして3回目から数える。分割の上限（SPLIT_CAP: KITの「分割+検証 8」）に達したら、
+     実行できない「総数を1つ増やして」を案内しない */
+  var SPLIT_CAP = 8;
+  function effRounds(p) {
+    return (p && typeof p.trunc === "number" && isFinite(p.trunc) && p.trunc >= 1) ? Math.floor(p.trunc) : 1;
+  }
+  function truncGuidance(k, p, n) {
+    var rounds = effRounds(p);
+    var atCap = (typeof n === "number" && n >= SPLIT_CAP);
+    if (rounds <= 1) return "PART " + k + " が途中で切れています。AIに「PART " + k + " を出し直して」と送り、届いたものを貼り付けてください";
+    var x = String((p && p.body) || "").trim().length;
+    /* 届いた字数の表示は実測に近づける（ごく小さいときに「約100字」と偽らない）。目安Yは届いた字数の7割を千の位で
+       切り下げ、最小1,000字（2,000字を下限にすると、1,500字しか届かなかったPARTに2,000字を求める矛盾が出る） */
+    var xr = Math.round(x / 100) * 100;
+    var xTxt = x < 100 ? "ほとんど届いていません" : "届いたのは約" + String(xr).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "字";
+    var y = Math.max(1000, Math.floor(x * 0.7 / 1000) * 1000);
+    var fmt = function (v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ","); };
+    var split = "「PART " + k + " を2つに分けて出し直して。PARTの総数を1つ増やし、1PARTを約" + fmt(y) + "字以内にして」";
+    var bigAi = "容量の大きいAI（Gemini・Claude・有料プラン）に、新しいチャットでこのKIT（手順書）を貼ってから結果一覧を貼り、続きから進めることをおすすめします";
+    if (atCap) {
+      return "PART " + k + " が" + rounds + "回続けて途中で切れています（" + xTxt + "）。PARTの分割は上限（" + SPLIT_CAP + "個）に達しているため、これ以上は分けられません。"
+        + bigAi;
+    }
+    if (rounds === 2) {
+      return "PART " + k + " が2回続けて途中で切れました（" + xTxt + "）。AIの1回の出力上限を超えています。"
+        + "同じ指示を繰り返さず、AIに" + split + "と送り、届いたものを貼り付けてください";
+    }
+    return "PART " + k + " が" + rounds + "回続けて途中で切れています（" + xTxt + "）。このAIの1回の出力上限では最後まで出せない可能性があります。"
+      + bigAi + "。続けるなら"
+      + "AIに" + split + "と送り、届いたものを貼り付けてください";
+  }
+  /* バナーの見出し（太字・最初に読まれる）用の短い操作文。本文側の truncGuidance と同じ3段階。
+     2026-10-15(目視で発見): 見出しが常に「AIチャットに『次』と返信」だったため、途中切れ案内（小さい本文側）と
+     食い違い、ユーザーが見出しに従って「次」を返信すると同じ切れたPARTが繰り返される原因になりうる */
+  function truncHeadline(k, p, n) {
+    var rounds = effRounds(p);
+    var atCap = (typeof n === "number" && n >= SPLIT_CAP);
+    if (rounds <= 1) return "PART " + k + " が途中で切れています → AIに「PART " + k + " を出し直して」と送り、届いたものを上の欄へ貼り付けてください";
+    if (rounds === 2 && !atCap) return "PART " + k + " が2回続けて途中で切れました → AIに「PART " + k + " を2つに分けて出し直して」と送ってください（詳しくは下）";
+    return "PART " + k + " が" + rounds + "回続けて途中で切れています → 容量の大きいAI（Gemini・Claude・有料プラン）をおすすめします（詳しくは下）";
+  }
   function partStatus(store) {
     var n = (store && store.n) || 0;
     var parts = (store && store.parts) || {};
@@ -1234,19 +1297,20 @@
       var p = parts[k];
       if (k > n || k < 1) { outOfRange.push(k); return; }
       if (p.hasEnd) return;
-      var trimmedBody = String(p.body || "").trim();
-      var lastOk = (k === n) && /<\/html>\s*$/i.test(trimmedBody);
-      var softOk = p.endedByNextMarker && RE_CLOSED_TAG_END.test(trimmedBody);
-      if (softOk || lastOk) softEnd.push(k); else truncated.push(k);
+      if (isPartTruncated(p, k, n)) truncated.push(k); else softEnd.push(k);
     });
     var complete = n > 0 && missing.length === 0 && truncated.length === 0 && outOfRange.length === 0;
     var msgs = [];
     var inRange = received.filter(function (k) { return k >= 1 && k <= n; });
-    if (n > 0 && inRange.length) msgs.push("PART " + inRange.join("、") + " を受け取りました（全" + n + "個）");
-    if (missing.length) msgs.push("残り: PART " + missing.join("、") + "。AIチャットに「次」と返信し、届いたら貼り付けてください");
-    truncated.forEach(function (k) {
-      msgs.push("PART " + k + " が途中で切れています。AIに「PART " + k + " を出し直して」と送り、届いたものを貼り付けてください");
-    });
+    /* 途中切れのPARTは「受け取りました」に含めない（届いたと読めて、途中切れ案内と食い違う。2026-10-15） */
+    var okRecv = inRange.filter(function (k) { return truncated.indexOf(k) < 0; });
+    if (n > 0 && okRecv.length) msgs.push("PART " + okRecv.join("、") + " を受け取りました（全" + n + "個）");
+    if (missing.length) {
+      /* 途中切れがある間に「次」へ進めても、そのPARTは直らず最後にやり直しになる。先に直すよう案内する */
+      if (truncated.length) msgs.push("残り: PART " + missing.join("、") + "（途中切れのPARTを先に直してから、AIチャットに「次」と返信してください）");
+      else msgs.push("残り: PART " + missing.join("、") + "。AIチャットに「次」と返信し、届いたら貼り付けてください");
+    }
+    truncated.forEach(function (k) { msgs.push(truncGuidance(k, parts[k], n)); });
     if (outOfRange.length) msgs.push("PART番号が総数と合いません（PART " + outOfRange.join("、") + "、全" + n + "個）。「クリア」してから貼り直してください");
     if (complete) msgs.push("全PARTがそろいました。結合して検証します");
     return { n: n, received: received, missing: missing, truncated: truncated, softEnd: softEnd, outOfRange: outOfRange, complete: complete, message: msgs.join("。") };
@@ -2654,6 +2718,8 @@
     parseParts: parseParts,
     MAX_PARTS: MAX_PARTS,
     partStatus: partStatus,
+    isPartTruncated: isPartTruncated,
+    truncHeadline: truncHeadline,
     assembleParts: assembleParts,
     partIdentity: partIdentity,
     identityMatch: identityMatch,

@@ -722,6 +722,8 @@ footer.site-footer a { color: var(--color-mute); }
         var kn = parseInt(k, 10);
         var v = obj.parts[k];
         if (kn >= 1 && kn <= n && v && typeof v === "object" && typeof v.body === "string") {
+          /* 破損したtrunc（文字列・負数・NaN等）は捨てて1回目の案内に戻す */
+          if ("trunc" in v && !(typeof v.trunc === "number" && isFinite(v.trunc) && v.trunc >= 1)) delete v.trunc;
           cleanParts[kn] = v;
         }
       });
@@ -807,10 +809,12 @@ footer.site-footer a { color: var(--color-mute); }
       if (state === "collecting" && partStore.n) {
         var stC = RR.partStatus(partStore);
         for (var k = 1; k <= stC.n; k++) {
-          var got = stC.received.indexOf(k) >= 0 && stC.missing.indexOf(k) < 0;
+          var isTrunc = stC.truncated.indexOf(k) >= 0;
+          var got = stC.received.indexOf(k) >= 0 && stC.missing.indexOf(k) < 0 && !isTrunc;
           var chip = document.createElement("span");
           chip.className = "part-chip" + (got ? " got" : "");
-          chip.textContent = (got ? "● " : "○ ") + "PART " + k;
+          /* 途中切れは受領済み(●)ではなく△で示す（2026-10-15: ●だと「届いた」と読めて見出しの案内と食い違う） */
+          chip.textContent = (got ? "● " : (isTrunc ? "△ " : "○ ")) + "PART " + k + (isTrunc ? "（途中切れ）" : "");
           statusChips.appendChild(chip);
         }
       }
@@ -819,7 +823,18 @@ footer.site-footer a { color: var(--color-mute); }
     var guidance = "";
     if (statusTitle) {
       if (state === "collecting") {
-        statusTitle.textContent = "次の操作: AIチャットに「次」と返信し、届いたPARTをそのまま上の欄へ貼り付けてください";
+        var stT = RR.partStatus(partStore);
+        if (stT.truncated.length) {
+          /* 途中切れがあるときは、欠落PARTへ進める前にそのPARTを直す（先に「次」へ進めても最後にやり直しになる） */
+          /* 見出しは最も段階の進んだ（回数の多い）PARTを名指しする（本文の3回目案内と同じ対象。同じ回数ならkの小さい方） */
+          var tk = stT.truncated.slice().sort(function (a, b) {
+            var ta = (partStore.parts[a] && partStore.parts[a].trunc) || 1, tb = (partStore.parts[b] && partStore.parts[b].trunc) || 1;
+            return (tb - ta) || (a - b);
+          })[0];
+          statusTitle.textContent = RR.truncHeadline(tk, partStore.parts[tk], partStore.n);
+        } else {
+          statusTitle.textContent = "次の操作: AIチャットに「次」と返信し、届いたPARTをそのまま上の欄へ貼り付けてください";
+        }
       } else if (state === "needs-fix") {
         var n = (lastResults || []).filter(function (r) { return !r.ok && !r.local && kindOf(r) === "action"; }).length;
         if (n > 0) {
@@ -908,6 +923,9 @@ footer.site-footer a { color: var(--color-mute); }
          なってしまう） */
       fixRounds = 0;
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
+      /* 2026-10-15(独立レビューで実行確認): 総数が変わった＝AIが分割をやり直した合図なのに、温存されたPART
+         （k < kmin）の途中切れ回数が残り、新しい分割の1回目から「2回続けて」と案内していた。回数も数え直す */
+      Object.keys(partStore.parts).forEach(function (k) { if (partStore.parts[k]) delete partStore.parts[k].trunc; });
       if (plan.dropped.length) {
         notices.push("PARTの総数が食い違っています（これまで " + plan.prevN + "、今回 " + plan.n +
           "）。今回の " + plan.n + " を採用し、前の分割で受け取ったPART " + plan.dropped.join(", ") + " は破棄しました");
@@ -1111,9 +1129,27 @@ footer.site-footer a { color: var(--color-mute); }
     var warnings = res.warnings.slice();
     var plan = RR.partSetPlan(partStore, res);
     applyPlan(plan, notices);
+    /* 2026-10-15(独立レビュー): 1回の貼り付けに同じPARTが複数入っていても「1回の到着」として数える
+       （AIの1回の返信を2回と数えて、再出力していないのに2回目の案内へ進めない）。回数は貼り付け前の値から+1 */
+    var truncBefore = {};
     res.parts.forEach(function (p) {
-      if (partStore.parts[p.k]) replaced.push(p.k);
-      partStore.parts[p.k] = { body: p.body, hasEnd: p.hasEnd, endedByNextMarker: p.endedByNextMarker, at: Date.now() };
+      var pe = partStore.parts[p.k];
+      if (!(p.k in truncBefore)) truncBefore[p.k] = (pe && typeof pe.trunc === "number" && isFinite(pe.trunc) && pe.trunc >= 1) ? Math.floor(pe.trunc) : 0;
+    });
+    res.parts.forEach(function (p) {
+      var prevEntry = partStore.parts[p.k];
+      if (prevEntry) replaced.push(p.k);
+      var entry = { body: p.body, hasEnd: p.hasEnd, endedByNextMarker: p.endedByNextMarker, at: Date.now() };
+      /* 2026-10-15: 同じPARTが連続して途中切れで届いた回数を数える（RR-ENDで完結して届けば数えない＝リセット）。
+         出力上限の小さいAIで「出し直して」→同じ位置で切れる、の往復が無限に続くのを、案内の段階化
+         （2回目で分割・3回目で大容量AIへ）で止めるための入力（rr-checks.js の truncGuidance） */
+      if (RR.isPartTruncated(entry, p.k, partStore.n)) {
+        /* 2026-10-15(wide監査B1): 総数が増えた貼り付け＝AIが分割に従った。その分割後のPARTがまた切れて届いたなら、
+           分割は1回試した（出し直し→分割→まだ切れる）ので3回目の案内（大容量AI）から始める。1回目に戻すと
+           分割を総数の上限まで勧め続ける。分割していないPART（回数を消された温存分）はこの対象外 */
+        entry.trunc = (plan.mode === "newCount" && plan.n > plan.prevN) ? Math.max(3, truncBefore[p.k] + 1) : truncBefore[p.k] + 1;
+      }
+      partStore.parts[p.k] = entry;
     });
     persistStore();
     var st = RR.partStatus(partStore);

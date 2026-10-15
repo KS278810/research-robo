@@ -87,15 +87,36 @@ fi
 
 echo
 echo "=== 末尾スラッシュ無しURLの挙動（301推奨・200も許容） ==="
-root_nolash="${BASE%/}"
-code="$(curl -s -o /dev/null -w '%{http_code}' "$root_nolash" 2>/dev/null)"
+root_noslash="${BASE%/}"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$root_noslash" 2>/dev/null)"
 if [ "$code" = "301" ] || [ "$code" = "200" ] || [ "$code" = "308" ]; then
-  echo "OK:   ${root_nolash} -> $code"
+  echo "OK:   ${root_noslash} -> $code"
   pass=$((pass + 1))
 else
-  echo "FAIL: ${root_nolash} -> $code（301/308/200のいずれでもない）"
+  echo "FAIL: ${root_noslash} -> $code（301/308/200のいずれでもない）"
   fail=$((fail + 1))
 fi
+
+# 2026-10-14(Docker実機検証で発見): nginx が /assets → /assets/ の301を「listenポート(80)」の絶対URLで返し、
+# 公開ポートを変えた運用でホスト:ポートが落ちていた。ディレクトリ名（末尾スラッシュ無し）がリダイレクトされるなら、
+# Location が今アクセスしている origin（スキーム://ホスト[:ポート]）から始まるか、相対であることを要求する
+echo
+echo "=== ディレクトリリダイレクトの Location が元のホスト:ポートを保つ ==="
+origin="$(printf '%s' "$BASE" | sed -E 's#^(https?://[^/]+).*#\1#')"
+loc_code="$(curl -s -o /dev/null -w '%{http_code}' "${BASE}assets" 2>/dev/null)"
+# 生の Location ヘッダを読む（curl の %{redirect_url} は相対Locationを絶対URLに解決してしまい、検査にならない）
+loc="$(curl -s -o /dev/null -D - "${BASE}assets" 2>/dev/null | tr -d '\r' | awk 'tolower($1)=="location:"{print $2; exit}')"
+case "$loc_code" in
+  301|302|307|308)
+    if [ -z "$loc" ] || case "$loc" in /*|"$origin"/*) true;; *) false;; esac; then
+      echo "OK:   ${BASE}assets -> $loc_code Location=${loc:-（なし）}"
+      pass=$((pass + 1))
+    else
+      echo "FAIL: ${BASE}assets -> $loc_code Location=$loc（アクセス中の $origin ではない）"
+      fail=$((fail + 1))
+    fi ;;
+  *) echo "INFO: ${BASE}assets -> $loc_code（リダイレクトしない配信。検査対象外）" ;;
+esac
 
 echo
 echo "PASS $pass / FAIL $fail"

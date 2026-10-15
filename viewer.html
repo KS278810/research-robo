@@ -12,12 +12,8 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/images/favicon-512.png">
 <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- 2026-09-14(Phase4): 社内ネットワーク等でGoogle Fontsに到達できなくても
-     初回描画をブロックしない（media=printでロード後にallへ切替。noscript版も残す） -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap"></noscript>
+<!-- 2026-10-14: Webフォントは使わない（Google Fontsへのリクエストをゼロにする。ユーザーのレポート内容を扱う
+     画面なので、外部へIP・参照元が送られる経路を残さない）。書体は端末のフォントに任せる -->
 
 <style>
 *, *::before, *::after { box-sizing: border-box; }
@@ -36,8 +32,8 @@ html, body { margin: 0; padding: 0; }
   --color-ok: #0F766E;
   --color-bad: #B91C1C;
   --color-warn: #B45309;
-  --font-heading: "Zen Maru Gothic", "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
-  --font-body: "Noto Sans JP", "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "BIZ UDPGothic", system-ui, sans-serif;
+  --font-heading: "Noto Sans CJK JP", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-body: "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "BIZ UDPGothic", system-ui, sans-serif;
   --font-mono: "SF Mono", "Consolas", "Menlo", monospace;
   --radius-md: 14px;
   --radius-sm: 8px;
@@ -262,7 +258,7 @@ footer.site-footer a { color: var(--color-mute); }
 
     <div class="privacy-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>貼り付けた内容は外部に送信されません（フォント読み込みのみGoogle Fontsを使用）。</span>
+      <span>貼り付けた内容は外部に送信されません。このページは外部サービスを読み込みません。</span>
     </div>
 
     <div class="panel">

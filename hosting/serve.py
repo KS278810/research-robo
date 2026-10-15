@@ -55,16 +55,24 @@ MIME = {
 def _denied(rel):
     """rel: posix-style path relative to ROOT, no leading slash, already
     normalized (no '..', no leading '/'); may name a file or a directory."""
-    parts = [p for p in rel.split("/") if p]
+    # 2026-10-14 (audit L3): compare case-insensitively and refuse backslashes. On a
+    # case-insensitive filesystem (macOS/Windows) "DEV/CLAUDE.md" opens dev/CLAUDE.md, and
+    # on Windows "dev\\CLAUDE.md" is the same path; both slipped past the exact-match
+    # lowercase deny-list in the --no-git fallback. (Git mode is protected by the
+    # tracked-file whitelist.) Over-denying is harmless: no public file uses these names.
+    if "\\" in rel:
+        return True
+    low = rel.lower()
+    parts = [p for p in low.split("/") if p]
     if not parts:
         return False
     if any(p.startswith(".") for p in parts):
         return True
-    if rel in DENY_FILES:
+    if low in {d.lower() for d in DENY_FILES}:
         return True
     if parts[0] in ("dev", "hosting"):
         return True
-    if rel.endswith(".bak"):
+    if low.endswith(".bak"):
         return True
     return False
 

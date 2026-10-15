@@ -301,6 +301,21 @@
      rr:confirmed-count等の値が読み取れなくなる（「値を読み取れません」の誤検知）。
      toHalfDigitsで半角化してから非数字を除く */
   function digitsOf(s) { return toHalfDigits(s).replace(/[^0-9]/g, ""); }
+  /* 2026-10-14(監査・L6): rr:confirmed-count の件数を読む。digitsOf は全ての数字を連結するため
+     "2026年12件" が 202612 になり、確認済み件数を取り違えて引用率・本文分量の判定が崩れた
+     （「確認済み 202612 件」と表示される。実際に再現）。件数は「件」の直前の整数を優先し、
+     無ければ整数がちょうど1つのときだけそれを採る（複数あって目印が無いときは取り違えるより
+     「読み取れません」にする）。桁区切りの "1,234" は従来どおり 1234 として読む。
+     日付の比較（表紙とmeta）は連結が目的なので digitsOf のまま */
+  function countOf(s) {
+    var t = toHalfDigits(s == null ? "" : s).replace(/，/g, ",").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+    /* 「1 234件」「1.234件」「12.5件」のように数字の直前が「数字+区切り(空白/ピリオド)」だと桁区切りか小数か
+       判断できない（digitsOfは 234 や 125 に化けた）。取り違えるより「読み取れません」にする */
+    var mk = t.match(/(\d[.\s])?(\d+)\s*件/); /* 変数名を m にしない（kit_contract のR5ピンが別の変数宣言の最初の出現を探す） */
+    if (mk) return mk[1] ? "" : mk[2];
+    var runs = t.match(/\d+/g) || [];
+    return runs.length === 1 ? runs[0] : "";
+  }
 
   /* 日付らしい並びを YYYYMM(DD) の列へ正規化する。「2026年8月27日」「2026/8/27」
      「2026-08-27」を同一視し、表紙が自然な日本語表記でもmetaと一致と判定する
@@ -996,7 +1011,7 @@
         v51 ? { title: "調査で確認した件数の記載が無く、引用の網羅を判定できません" }
             : { kind: "na", title: "旧形式のレポートのため、この項目は判定していません" });
     } else {
-      var total = parseInt(digitsOf(ccEl.getAttribute("content")), 10);
+      var total = parseInt(countOf(ccEl.getAttribute("content")), 10);
       var claims = citedClaimSet(doc);
       var claimCount = Object.keys(claims).length;
       if (!total || isNaN(total)) {
@@ -2027,7 +2042,7 @@
     if (!cov) cov = coverValue(coverLines(doc), "情報対象期間");
     if (/\{\{\s*RR:/.test(cov)) cov = "";
     st.period = cov ? cov.replace(/^(\d{4}-\d{2})\s*[\/／~～]\s*(\d{4}-\d{2})$/, "$1〜$2") : "";
-    st.confirmedCount = digitsOf(metaContent(doc, "rr:confirmed-count"));
+    st.confirmedCount = countOf(metaContent(doc, "rr:confirmed-count"));
     return st;
   }
 
@@ -2286,7 +2301,7 @@
                                 : "リンクの種類に問題はありません" });
 
     var ccContent = metaContent(doc, "rr:confirmed-count");
-    var total = parseInt(digitsOf(ccContent), 10);
+    var total = parseInt(countOf(ccContent), 10);
     if (!ccContent || !total || isNaN(total)) {
       addResult(results, false, "本文分量・確認済みID整合の判定ができません（このKITの形式のはずですが…）",
         "meta name=\"rr:confirmed-count\" が無いか読み取れません。本文分量とID整合の判定にはこの値が必要です。",
@@ -2622,6 +2637,7 @@
     runStructureChecks: runStructureChecks,
     normalizeRefUrl: normalizeRefUrl,
     digitsOf: digitsOf,
+    countOf: countOf,
     dateKeys: dateKeys,
     toHalfDigits: toHalfDigits,
     normResultListLine: normResultListLine,

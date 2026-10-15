@@ -734,6 +734,8 @@ footer.site-footer a { color: var(--color-mute); }
         parts: cleanParts,
         reset: (obj.reset && typeof obj.reset === "object") ? obj.reset : null
       };
+      /* 学習した出力上限。壊れた値（非数・小さすぎ・巨大）は捨てて従来の案内に戻す */
+      if (typeof obj.capY === "number" && isFinite(obj.capY) && obj.capY >= 1500 && obj.capY <= 20000) partStore.capY = Math.floor(obj.capY);
       return true;
     } catch (e) { /* ignore */ }
     return false;
@@ -831,9 +833,15 @@ footer.site-footer a { color: var(--color-mute); }
             var ta = (partStore.parts[a] && partStore.parts[a].trunc) || 1, tb = (partStore.parts[b] && partStore.parts[b].trunc) || 1;
             return (tb - ta) || (a - b);
           })[0];
-          statusTitle.textContent = RR.truncHeadline(tk, partStore.parts[tk], partStore.n);
+          statusTitle.textContent = RR.truncHeadline(tk, partStore.parts[tk], partStore.n, partStore.capY);
         } else {
-          statusTitle.textContent = "次の操作: AIチャットに「次」と返信し、届いたPARTをそのまま上の欄へ貼り付けてください";
+          /* 出力上限を学習している（capY）ときは、「次」ではなく字数つきの指示にする（次のPARTも切れないように） */
+          var nextMissing = stT.missing && stT.missing.length ? stT.missing[0] : 0;
+          if (partStore.capY && nextMissing) {
+            statusTitle.textContent = "次の操作: AIチャットに「PART " + nextMissing + " を約" + String(partStore.capY).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "字以内で出して」と送り、届いたPARTをそのまま上の欄へ貼り付けてください";
+          } else {
+            statusTitle.textContent = "次の操作: AIチャットに「次」と返信し、届いたPARTをそのまま上の欄へ貼り付けてください";
+          }
         }
       } else if (state === "needs-fix") {
         var n = (lastResults || []).filter(function (r) { return !r.ok && !r.local && kindOf(r) === "action"; }).length;
@@ -910,6 +918,7 @@ footer.site-footer a { color: var(--color-mute); }
     if (plan.mode === "newReport") {
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
       fixRounds = 0;
+      delete partStore.capY;   /* 別のレポート（別のチャットかもしれない）の出力上限は引き継がない */
       /* 2026-09-03(バグ再修正・A10): 結果一覧の蓄積を残すと、前のレポートの主張が
          新しいレポートの付録Cに混ざる（実走で確認した「別レポート」誤結合と同型） */
       resultListStore = [];
@@ -1150,6 +1159,15 @@ footer.site-footer a { color: var(--color-mute); }
         entry.trunc = (plan.mode === "newCount" && plan.n > plan.prevN) ? Math.max(3, truncBefore[p.k] + 1) : truncBefore[p.k] + 1;
       }
       partStore.parts[p.k] = entry;
+      /* 2026-10-15(出力上限の学習): 途中切れの届いた字数 X は、そのチャットの1回の出力上限にほぼ相当する。
+         X が十分大きい（貼り損ねでない）ときだけ学習し、縮める方向にだけ更新する（完結したPARTや大きい切れでは上げない） */
+      if (entry.trunc) {
+        var xLen = String(entry.body || "").trim().length;
+        if (xLen >= RR.MIN_CAP_X) {
+          var yNew = RR.capOf(xLen);
+          partStore.capY = partStore.capY ? Math.min(partStore.capY, yNew) : yNew;
+        }
+      }
     });
     persistStore();
     var st = RR.partStatus(partStore);

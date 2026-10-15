@@ -1248,43 +1248,64 @@
      分割を総数16まで繰り返し勧め続けていた（実行再現）。取り込み側（viewer.html）が、分割後に切れて届いたPARTは
      分割を1回試したものとして3回目から数える。分割の上限（SPLIT_CAP: KITの「分割+検証 8」）に達したら、
      実行できない「総数を1つ増やして」を案内しない */
-  var SPLIT_CAP = 8;
+  var SPLIT_CAP = MAX_PARTS;
+  /* 2026-10-15(出力上限の学習): 途中で切れた位置までの文字数 X は、そのチャットの1回の出力上限にほぼ相当する。
+     X が MIN_CAP_X 以上なら、1回目の切れから分割を案内し、Y（Xの7割）を学習して以降のPARTにも使う
+     （同じ長さの「出し直して」は1往復を無駄にする）。X が小さい切れは貼り損ねの可能性があり、学習しない */
+  var MIN_CAP_X = 2000, MIN_CAP_Y = 1500;
+  function capOf(x) { return Math.max(MIN_CAP_Y, Math.floor(x * 0.7 / 100) * 100); }
+  function fmtN(v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
   function effRounds(p) {
     return (p && typeof p.trunc === "number" && isFinite(p.trunc) && p.trunc >= 1) ? Math.floor(p.trunc) : 1;
   }
-  function truncGuidance(k, p, n) {
+  /* 学習済みの上限（capY）があれば、それ以下に揃える（上がらない片方向） */
+  function capFor(x, capY) {
+    var y = capOf(x);
+    return (typeof capY === "number" && isFinite(capY) && capY >= MIN_CAP_Y) ? Math.min(y, capY) : y;
+  }
+  function truncGuidance(k, p, n, capY) {
     var rounds = effRounds(p);
     var atCap = (typeof n === "number" && n >= SPLIT_CAP);
-    if (rounds <= 1) return "PART " + k + " が途中で切れています。AIに「PART " + k + " を出し直して」と送り、届いたものを貼り付けてください";
     var x = String((p && p.body) || "").trim().length;
-    /* 届いた字数の表示は実測に近づける（ごく小さいときに「約100字」と偽らない）。目安Yは届いた字数の7割を千の位で
-       切り下げ、最小1,000字（2,000字を下限にすると、1,500字しか届かなかったPARTに2,000字を求める矛盾が出る） */
+    /* 届いた字数の表示は実測に近づける（ごく小さいときに「約100字」と偽らない） */
     var xr = Math.round(x / 100) * 100;
-    var xTxt = x < 100 ? "ほとんど届いていません" : "届いたのは約" + String(xr).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "字";
-    var y = Math.max(1000, Math.floor(x * 0.7 / 1000) * 1000);
-    var fmt = function (v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ","); };
-    var split = "「PART " + k + " を2つに分けて出し直して。PARTの総数を1つ増やし、1PARTを約" + fmt(y) + "字以内にして」";
+    var xTxt = x < 100 ? "ほとんど届いていません" : "届いたのは約" + fmtN(xr) + "字";
+    var y = capFor(x, capY);
+    var split = "「PART " + k + " を2つに分けて出し直して。PARTの総数を1つ増やし、1PARTを約" + fmtN(y) + "字以内にして。以降のPARTも約" + fmtN(y) + "字以内で出して」";
     var bigAi = "容量の大きいAI（Gemini・Claude・有料プラン）に、新しいチャットでこのKIT（手順書）を貼ってから結果一覧を貼り、続きから進めることをおすすめします";
-    if (atCap) {
-      return "PART " + k + " が" + rounds + "回続けて途中で切れています（" + xTxt + "）。PARTの分割は上限（" + SPLIT_CAP + "個）に達しているため、これ以上は分けられません。"
-        + bigAi;
+    var move = "AIに「PART " + k + " の章を1つ隣のPARTへ移して、影響する2つのPARTだけ出し直して」と送るか、";
+    if (atCap && (rounds >= 2 || x >= MIN_CAP_X)) {
+      return "PART " + k + " が" + (rounds >= 2 ? rounds + "回続けて" : "") + "途中で切れています（" + xTxt + "）。PARTの総数は上限（" + SPLIT_CAP + "個）に達しているため、これ以上は分けられません。"
+        + move + bigAi;
+    }
+    if (rounds <= 1) {
+      if (x >= MIN_CAP_X) {
+        return "PART " + k + " が途中で切れています（" + xTxt + "）。AIの1回の出力上限に達したようです。同じ長さで出し直しても再び切れるため、AIに" + split + "と送り、届いたものを貼り付けてください";
+      }
+      return "PART " + k + " が途中で切れています。AIに「PART " + k + " を出し直して」と送り、届いたものを貼り付けてください";
     }
     if (rounds === 2) {
       return "PART " + k + " が2回続けて途中で切れました（" + xTxt + "）。AIの1回の出力上限を超えています。"
-        + "同じ指示を繰り返さず、AIに" + split + "と送り、届いたものを貼り付けてください";
+        + "まだ長すぎるようです。AIに" + split + "と送り、届いたものを貼り付けてください";
     }
     return "PART " + k + " が" + rounds + "回続けて途中で切れています（" + xTxt + "）。このAIの1回の出力上限では最後まで出せない可能性があります。"
       + bigAi + "。続けるなら"
       + "AIに" + split + "と送り、届いたものを貼り付けてください";
   }
-  /* バナーの見出し（太字・最初に読まれる）用の短い操作文。本文側の truncGuidance と同じ3段階。
+  /* バナーの見出し（太字・最初に読まれる）用の短い操作文。本文側の truncGuidance と同じ段階。
      2026-10-15(目視で発見): 見出しが常に「AIチャットに『次』と返信」だったため、途中切れ案内（小さい本文側）と
      食い違い、ユーザーが見出しに従って「次」を返信すると同じ切れたPARTが繰り返される原因になりうる */
-  function truncHeadline(k, p, n) {
+  function truncHeadline(k, p, n, capY) {
     var rounds = effRounds(p);
     var atCap = (typeof n === "number" && n >= SPLIT_CAP);
-    if (rounds <= 1) return "PART " + k + " が途中で切れています → AIに「PART " + k + " を出し直して」と送り、届いたものを上の欄へ貼り付けてください";
-    if (rounds === 2 && !atCap) return "PART " + k + " が2回続けて途中で切れました → AIに「PART " + k + " を2つに分けて出し直して」と送ってください（詳しくは下）";
+    var x = String((p && p.body) || "").trim().length;
+    var y = capFor(x, capY);
+    if (atCap && (rounds >= 2 || x >= MIN_CAP_X)) return "PART " + k + " が途中で切れています。PARTは上限まで分けました → 章を隣のPARTへ移すか、容量の大きいAIをおすすめします（詳しくは下）";
+    if (rounds <= 1) {
+      if (x >= MIN_CAP_X) return "PART " + k + " が途中で切れています → AIに「PART " + k + " を2つに分けて出し直して」と送ってください（約" + fmtN(y) + "字以内・詳しくは下）";
+      return "PART " + k + " が途中で切れています → AIに「PART " + k + " を出し直して」と送り、届いたものを上の欄へ貼り付けてください";
+    }
+    if (rounds === 2) return "PART " + k + " が2回続けて途中で切れました → AIに「PART " + k + " を2つに分けて出し直して」と送ってください（詳しくは下）";
     return "PART " + k + " が" + rounds + "回続けて途中で切れています → 容量の大きいAI（Gemini・Claude・有料プラン）をおすすめします（詳しくは下）";
   }
   function partStatus(store) {
@@ -1301,16 +1322,22 @@
     });
     var complete = n > 0 && missing.length === 0 && truncated.length === 0 && outOfRange.length === 0;
     var msgs = [];
+    var capYv = (store && typeof store.capY === "number" && isFinite(store.capY) && store.capY >= MIN_CAP_Y) ? Math.floor(store.capY) : 0;
     var inRange = received.filter(function (k) { return k >= 1 && k <= n; });
     /* 途中切れのPARTは「受け取りました」に含めない（届いたと読めて、途中切れ案内と食い違う。2026-10-15） */
     var okRecv = inRange.filter(function (k) { return truncated.indexOf(k) < 0; });
     if (n > 0 && okRecv.length) msgs.push("PART " + okRecv.join("、") + " を受け取りました（全" + n + "個）");
     if (missing.length) {
       /* 途中切れがある間に「次」へ進めても、そのPARTは直らず最後にやり直しになる。先に直すよう案内する */
-      if (truncated.length) msgs.push("残り: PART " + missing.join("、") + "（途中切れのPARTを先に直してから、AIチャットに「次」と返信してください）");
+      if (truncated.length) {
+        /* 学習した字数（capY）があるのに「次」だけを案内すると、同じ案内の「以降のPARTも約Y字以内」と矛盾し、字数制限なしの要求に戻る */
+        if (capYv) msgs.push("残り: PART " + missing.join("、") + "（途中切れのPARTを先に直してから、AIチャットに「PART " + missing[0] + " を約" + fmtN(capYv) + "字以内で出して」と送ってください）");
+        else msgs.push("残り: PART " + missing.join("、") + "（途中切れのPARTを先に直してから、AIチャットに「次」と返信してください）");
+      }
+      else if (capYv) msgs.push("残り: PART " + missing.join("、") + "。AIチャットに「PART " + missing[0] + " を約" + fmtN(capYv) + "字以内で出して」と送り、届いたら貼り付けてください（以降も同じ字数以内）");
       else msgs.push("残り: PART " + missing.join("、") + "。AIチャットに「次」と返信し、届いたら貼り付けてください");
     }
-    truncated.forEach(function (k) { msgs.push(truncGuidance(k, parts[k], n)); });
+    truncated.forEach(function (k) { msgs.push(truncGuidance(k, parts[k], n, store && store.capY)); });
     if (outOfRange.length) msgs.push("PART番号が総数と合いません（PART " + outOfRange.join("、") + "、全" + n + "個）。「クリア」してから貼り直してください");
     if (complete) msgs.push("全PARTがそろいました。結合して検証します");
     return { n: n, received: received, missing: missing, truncated: truncated, softEnd: softEnd, outOfRange: outOfRange, complete: complete, message: msgs.join("。") };
@@ -2719,6 +2746,8 @@
     MAX_PARTS: MAX_PARTS,
     partStatus: partStatus,
     isPartTruncated: isPartTruncated,
+    capOf: capOf,
+    MIN_CAP_X: MIN_CAP_X,
     truncHeadline: truncHeadline,
     assembleParts: assembleParts,
     partIdentity: partIdentity,

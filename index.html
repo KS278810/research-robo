@@ -362,7 +362,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
    vertical-align:top で消す */
 .cta-final .copy-box { display: inline-block; vertical-align: top; width: auto; text-align: center; padding: 0.85rem 0.9rem; }
 /* 2026-10-09: 最下部CTAの枠・ボタンを中央揃えにしたのに合わせ、枠の見出し行も中央寄せ（以前はspace-between） */
-.copy-box-head { display: flex; align-items: center; justify-content: center; text-align: center; margin-bottom: 0.65rem; }
+.theme-input { display: block; width: 100%; max-width: 390px; margin: 0 auto 0.75rem; padding: 0.55rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9375rem; color: inherit; background: #fff; box-sizing: border-box; }
+.copy-box-head { display: flex; align-items: center; justify-content: flex-start; text-align: left; width: min(390px, 100%); margin: 0 auto 0.4rem; }
 .copy-box-label { font-size: 0.8125rem; font-weight: 700; color: var(--color-sub-text); letter-spacing: 0.04em; }
 .copy-box pre {
   margin: 0 0 0.8rem;
@@ -381,10 +382,10 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-box pre .url { color: #7DD3C0; }
 .copy-box pre .field { color: #FBBF6B; }
 
-.main-copy-btn { width: 100%; padding-block: 0.75rem; line-height: 1.4; }
+.main-copy-btn { width: auto; flex: 1 1 auto; padding-block: 0.55rem; padding-inline: 1rem; font-size: 0.9375rem; line-height: 1.4; }
 /* 最下部CTAのボタンはヒーローと同じく均等幅（.copy-choice-item の flex に従う）。
    以前は width:auto でラベルの字数だけで幅が決まり、2つのボタンが不揃いだった */
-.cta-final .main-copy-btn { padding-block: 1rem; font-size: 1.0625rem; }
+.cta-final .main-copy-btn { padding-block: 0.7rem; font-size: 1rem; }
 /* 最下部CTAは枠・ボタンとも通常(260px)の1.5倍幅。狭い画面では画面幅に収める */
 .cta-final .copy-choice-item { width: min(390px, calc(100vw - 5rem)); max-width: none; }
 @media (max-width: 480px) {
@@ -623,8 +624,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-choice { display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center; }
 /* 注記（copy-choice-note）の文字数が版で違っても、2つのボタンが同じ大きさになるよう
    均等幅にする（以前は注記が長い方のボタンだけ大きくなっていた） */
-.copy-choice-item { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex: 1 1 220px; max-width: 260px; }
-.copy-choice-note { font-size: var(--fs-small); color: var(--color-sub-text); font-weight: 700; }
+.copy-choice-item { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 0.5rem; flex: 1 1 220px; max-width: 390px; }
+/* 作業時間は、ボタンの右に置く正方形の札に「作業／5分」の2行で収める */
+.copy-choice-note { flex: none; width: 3.1rem; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.75rem; line-height: 1.3; color: var(--color-sub-text); font-weight: 700; }
 @media (max-width: 520px) { .copy-choice { flex-direction: column; align-items: stretch; } .copy-choice-item .btn { width: 100%; justify-content: center; } }
 /* ヒーロー・最下部CTAの2ボタンは画面幅によらず常に上下に積む（中間幅で左右に並んで窮屈になるのを防ぐ） */
 .copy-choice { flex-direction: column; align-items: center; }
@@ -697,7 +699,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   border-radius: 50%;
   border: 1px solid var(--color-border);
   background: rgba(255,255,255,0.92);
@@ -714,7 +716,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .rf-expand {
   position: absolute;
   top: 10px; right: 10px;
-  width: 34px; height: 34px;
+  width: 44px; height: 44px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
   background: rgba(255,255,255,0.92);
@@ -873,6 +875,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .cta-final .copy-box { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.24); backdrop-filter: blur(6px); }
 .cta-final .copy-box pre { background: rgba(0,0,0,0.28); color: #EAF3FF; }
 .cta-final .copy-box-label { color: #7DD3C0; }
+.cta-final .copy-choice-note { color: rgba(255,255,255,0.86); border-color: rgba(255,255,255,0.4); }
 .cta-final-visual img { width: min(100%, 170px); }
 .mascot-breathe { animation: mascot-breathe 3.2s ease-in-out infinite; }
 @keyframes mascot-breathe {
@@ -906,7 +909,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .footer-mail {
   background: none;
   border: none;
-  padding: 0;
+  padding: 0.75rem 0;
+  min-height: 44px;
   color: rgba(255,255,255,0.72);
   font-size: 0.875rem;
   font-family: inherit;
@@ -959,25 +963,29 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <span class="eyebrow">無料・登録不要</span>
         <h1>エンジニアのための<br><span class="hero-highlight">ベンチマーク調査</span>ツール</h1>
         <p class="hero-sub">
-          Deep Researchの回答を、出典を1件ずつ監査したレポートへ。技術動向から競合調査まで。
+          Deep Researchの回答を、出典と突き合わせて検査したレポートへ。技術動向から競合調査まで。
         </p>
       </div>
 
       <div class="copy-box" id="hero-copy-box">
         <div class="copy-box-head">
-          <span class="copy-box-label">コピーして、貼って、送信するだけ</span>
+          <span class="copy-box-label">① 調べたいこと</span>
+        </div>
+        <input class="theme-input" id="hero-theme" type="text" maxlength="120" autocomplete="off" aria-label="調べたいテーマ" placeholder="一文で。空欄でも可">
+        <div class="copy-box-head">
+          <span class="copy-box-label">② コピーして貼る</span>
         </div>
         <div class="copy-choice">
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
-            <span class="copy-choice-note">チャット1つ・作業約5分</span>
+            <span class="copy-choice-note">作業<br>5分</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット＋ビューア・作業約10分<br>（広いテーマは自動分割／大容量AIで）</span>
+            <span class="copy-choice-note">作業<br>10分</span>
           </div>
         </div>
-        <p class="copy-fallback" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
+        <p class="copy-fallback" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
         <p class="sr-only" aria-live="polite" id="hero-copy-status"></p>
       </div>
     </div>
@@ -1184,8 +1192,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-clipboard.webp" alt="クリップボードを持つResearchRoboのロボマスコット"></div>
         <div class="howto-body reveal">
           <h3>1. コピーして、貼って、送信（共通）</h3>
-          <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。調べたいテーマを聞かれるので、一文で答えます。</p>
-          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約10分・Deep Research 1回〜（広いテーマ・検証追加で最大8回）</span>
+          <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。上の欄にテーマを入れてコピーすると、聞かれずに始まります。空欄なら調べたいテーマを聞かれるので、一文で答えます。</p>
+          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約10分・Deep Research 3回前後から。狭いテーマは1回、検証追加で最大8回</span>
         </div>
       </div>
       <div class="howto-item">
@@ -1218,21 +1226,21 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       <span class="eyebrow">レポート実例</span>
       <h2>そのまま渡せるレポートに</h2>
       <div class="stat-row">
-        <div class="stat-chip"><span class="stat-num" data-count="13">0</span><span class="stat-label">調査対象OEM</span></div>
-        <div class="stat-chip"><span class="stat-num" data-count="122">0</span><span class="stat-label">公開資料</span></div>
-        <div class="stat-chip"><span class="stat-num" data-count="319">0</span><span class="stat-label">確認事実</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="13">0</span><span class="stat-label">調査対象企業（サンプル）</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="124">0</span><span class="stat-label">公開資料</span></div>
+        <div class="stat-chip"><span class="stat-num" data-count="285">0</span><span class="stat-label">確認事実</span></div>
       </div>
       <ul class="report-list">
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>A4横向き、読みやすい日本語フォントで構成</li>
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>本文・表に論文形式の引用番号を付与</li>
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>参考文献の一覧から原資料へリンク</li>
       </ul>
-      <a class="btn btn-outline" href="benchmark-report-sample.pdf" target="_blank" rel="noopener">実例レポートをPDFで見る・15ページ</a>
-      <p class="report-caveat">※ Research KITで実際に作成した衝突安全ベンチマーク調査レポートの公開版です（企業名はA社〜M社にマスキング）。A4横・引用番号つきの書式はKIT本文に定義済みで、追加ファイルは不要です。</p>
+      <a class="btn btn-outline" href="REPORT_STYLE_SYNTHETIC.pdf" target="_blank" rel="noopener">レポート全文をPDFで見る（全47ページ）</a>
+      <p class="report-caveat">※ 下の画像とPDFは、内容が架空のサンプルです（画像は先頭12ページと参考文献一覧の2ページ、全47ページはPDFで）。実際のレポートは、この体裁で出力されます。</p>
     </div>
     <div class="report-flip" id="report-flip">
       <div class="rf-stage" id="rf-stage" tabindex="0" role="group" aria-roledescription="ページめくりビューア" aria-label="実例レポートのページめくりビューア。左右の矢印キーでページを移動できます">
-        <img class="rf-page is-active" id="rf-page-a" src="assets/report/page-01.webp" alt="ベンチマーク調査レポート実例 1ページ目">
+        <img class="rf-page is-active" id="rf-page-a" src="assets/report/page-01.webp" alt="レポート実例（内容は架空のサンプル） 1ページ目">
         <img class="rf-page" id="rf-page-b" src="assets/report/page-02.webp" alt="" aria-hidden="true">
         <button class="rf-nav rf-prev" id="rf-prev" type="button" aria-label="前のページ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1245,7 +1253,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         </button>
       </div>
       <div class="rf-bar">
-        <span class="rf-count" id="rf-count" aria-live="polite">1 / 15</span>
+        <span class="rf-count" id="rf-count" aria-live="polite">1 / 14</span>
         <span class="rf-hint">クリックまたは矢印キーでページをめくれます</span>
       </div>
     </div>
@@ -1264,7 +1272,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     <button class="rf-lb-nav rf-lb-next" id="rf-lb-next" type="button" aria-label="次のページ">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>
     </button>
-    <span class="rf-lb-count" id="rf-lb-count" aria-live="polite">1 / 15</span>
+    <span class="rf-lb-count" id="rf-lb-count" aria-live="polite">1 / 14</span>
   </div>
 </div>
 
@@ -1278,12 +1286,12 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     <div>
       <details class="faq-item reveal" style="--i:0">
         <summary>無料ですか</summary>
-        <p>はい。CC BY 4.0のもとに公開しており、登録もアカウントも不要です。</p>
+        <p>はい。この手順書（プロンプト）は無料で、CC BY 4.0のもとに公開しており、登録もアカウントも不要です。ただし、貼り付けて使うAIチャットは別に必要です。容量の大きいAI（Google AI Studio・Gemini・Claude、または各サービスの有料プラン）を前提にしており、Deep Researchの利用枠は、お使いのAIサービスの条件に従います。</p>
       </details>
       <details class="faq-item reveal" style="--i:1">
         <summary>「手軽に試す」と「しっかり調べる」の違いは</summary>
         <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません（調査条件の確認で「Deep Researchを使う」に変えると、別チャットで実行するプロンプトが届きます）。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
-        <p><strong>しっかり調べる</strong>は、確認した調査条件から1本の調査プロンプトを作り、別のチャットのDeep Researchで実行します（対象が多い広いテーマでは自動で数本に分け、その理由を示します）。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります（必要な場合だけ別チャットで検証を追加します）。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
+        <p><strong>しっかり調べる</strong>は、確認した調査条件から調査対象を重複なく漏れなく分け、既定で通常3本の調査プロンプトを作り、別のチャットのDeep Researchで実行します。狭いテーマは1本にまとめます。分け方とその理由も示します。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります必要な場合だけ検証用の1本を同じ本数の中に含めます。結果は1本ずつ貼り、AIの「次」を待つ進め方が基本です。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
         <p>どちらも同じビューアでPDFにでき、出典番号と参考文献リストが付きます。迷ったら「手軽に試す」から始めて、物足りなければ同じテーマで「しっかり調べる」を実行してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:2">
@@ -1291,9 +1299,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <p><strong>手軽に試す</strong>：Web検索ができるAIチャットが1つあれば動きますが、調査結果とレポートを同じチャットに置くため、容量の大きいAI（Google AI Studio・Gemini・Claude、または各サービスの有料プラン）を前提にしてください。容量の小さいチャットでは、資料が多いと途中で手順書が失われ、最後まで到達できないことがあります。</p>
         <p><strong>しっかり調べる</strong>：チャットの役割が2つあり、必要な条件が違います。</p>
         <p>❶ <strong>最初のチャット</strong>：全結果を集めてレポートを書くので、容量の大きいAIが向いています。Google AI Studio・Gemini・Claudeのほか、Web接続のない社内AIでも使えます。<br>
-          ❷ <strong>調査チャット</strong>：Deep Researchが必要ですが、容量は小さくて構いません。ChatGPT無料版でも使えます。</p>
+          ❷ <strong>調査チャット</strong>：Deep Researchが必要ですが、容量は小さくて構いません。ChatGPT無料版でも使えます（ただし無料版ではDeep Researchが軽量版に切り替わり、調査の質が落ちることがあります。「Deep Research」の表示と残りの回数を確認してください）。</p>
         <p>ChatGPT無料版だけで「しっかり調べる」は通りません（フル版の手順書は無料版の容量に収まらず、貼り付けた時点で前半が失われます）。「手軽に試す」も、資料が多い調査では同じ理由で途中で失敗します。どちらもGoogle AI Studio・Gemini・Claudeなど容量の大きいAIをお使いください。</p>
-        <p>Geminiで長文の貼り付けが失敗するときは、KITファイルを添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
+        <p>Geminiで長文の貼り付けが失敗するときは、手順書のファイルをダウンロードして添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
       </details>
       <details class="faq-item reveal" style="--i:3">
         <summary>個別の調査プロンプトを貼ると、指定の形式ではなくレポートや文書になります</summary>
@@ -1301,19 +1309,19 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       </details>
       <details class="faq-item reveal" style="--i:4">
         <summary>AIの応答が途中で止まってしまいました</summary>
-        <p>「続けて統合を行います」のような文だけで応答が終わった場合は、「続けて」と一言送ってください。そのまま次の工程へ進みます。レポートが途中で切れた場合は、<a href="viewer.html">ビューア</a>が「PART 2 を出し直して」のように送る文を表示します。その文をそのまま最初のチャットへ送り、届いたコードブロックをビューアに貼り直してください。</p>
+        <p>「続けて統合を行います」のような文だけで応答が終わった場合は、「続けて」と一言送ってください。そのまま次の工程へ進みます。レポートが途中で切れた場合は、<a href="viewer.html">ビューア</a>が「PART 2 を出し直して」のように送る文を表示します（PART＝長いレポートを分けた1つ分のコードブロックのことです）。その文をそのまま最初のチャットへ送り、届いたコードブロックをビューアに貼り直してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:5">
         <summary>なぜ調査は別のチャットで実行するのですか</summary>
-        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。広いテーマでは調査プロンプトが数本に分かれることがあり、その場合は同時に開いて並行実行すると待ち時間を短縮できます。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
+        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。既定では調査対象を分けて通常3本になり、同時に開いて並行実行すると待ち時間を短縮できます。狭いテーマは1本にまとまります。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
       </details>
       <details class="faq-item reveal" style="--i:6">
         <summary>レポートはどうやってPDFにするのですか</summary>
-        <p>レポートは最初のチャットが複数のコードブロックに分けて返します。<a href="viewer.html">ビューア</a>へ順に貼り付けると自動で結合して整え、機械的に直せる不備（重複した参考文献の統合など）はその場で修復したうえで、残る不備だけを表示します。そのままプレビューと「PDFとして保存」ができます（貼り付けた内容はお使いのブラウザ内だけで処理され、どこにも送信されません）。AIチャット自体の「ダウンロード」機能ではなく、ビューアの「HTMLをダウンロード」「PDFとして保存」を使ってください。</p>
+        <p>レポートは最初のチャットが複数のコードブロックに分けて返します。<a href="viewer.html">ビューア</a>へ順に貼り付けると自動で結合して整え、機械的に直せる不備（重複した参考文献の統合など）はその場で修復したうえで、残る不備だけを表示します。そのままプレビューと「PDFとして保存」ができます（このビューアは、貼り付けた内容をお使いのブラウザ内だけで処理し、サーバーには送信しません）。AIチャット自体の「ダウンロード」機能ではなく、ビューアの「HTMLをダウンロード」「PDFとして保存」を使ってください。</p>
       </details>
       <details class="faq-item reveal" style="--i:7">
         <summary>ビューアで不備が出たときのやり直し方は</summary>
-        <p>ビューアの「不備をコピー」を押し、最初のチャットへ貼り付けてください。該当のコードブロックだけが修正されて出てくるので、<strong>それをビューアの貼り付け欄にそのまま貼ります</strong>。「クリア」を押す必要はありません。同じ番号のコードブロックは自動で置き換わります。レポートのファイルを添付し直す必要もありません（最初のチャットが調査記録を保持しているので、その部分だけ出し直すのが最短で、ファイルのやりとりは文字化けの原因にもなります）。赤い項目が消えれば完成です。<strong>黄色（参考）は残っていても構いません</strong>——そのままPDFにできます。</p>
+        <p>ビューアの「不備をコピー」を押し、最初のチャットへ貼り付けてください。たいていは該当のコードブロックだけが修正されて出てくるので、<strong>それをビューアの貼り付け欄にそのまま貼ります</strong>。「クリア」は、ビューアが案内したとき以外は押さなくて構いません。同じ番号のコードブロックは自動で置き換わります。レポートのファイルを添付し直す必要もありません（最初のチャットが調査記録を保持しているので、その部分だけ出し直すのが最短で、ファイルのやりとりは文字化けの原因にもなります）。赤い項目が消えれば完成です。<strong>黄色（参考）は残っていても構いません</strong>——そのままPDFにできます。赤が残っても、出し直しを1回行ったあとは、ビューアの案内どおり保存して構いません。</p>
       </details>
       <details class="faq-item reveal" style="--i:8">
         <summary>ベンチマーク調査以外にも使えますか</summary>
@@ -1321,31 +1329,35 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       </details>
       <details class="faq-item reveal" style="--i:9">
         <summary>どれくらい時間がかかりますか</summary>
-        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約10分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ち（AIが自動で進める時間・通常1回）が加わり、テーマの規模によっては分割や検証用の調査が自動で追加され、その分延びます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
+        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約10分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ちが加わります。AIが自動で進める時間で、通常3回前後です。狭いテーマでは1回、検証用の調査が必要な場合はその分も含みます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
       </details>
       <details class="faq-item reveal" style="--i:10">
         <summary>Deep Researchの利用回数は消費しますか</summary>
-        <p>はい。ResearchRobo自体はプロンプトであり、Deep Research機能の実行回数や利用枠は、使用しているAIサービス側の制限にそのまま従います。「手軽に試す」は「Deep Research：使わない」のままなら消費しません。「しっかり調べる」は通常1回消費します（広いテーマの分割や検証の自動追加で2〜8回になることがあります）。無料プランは実行枠が少なく、1回の調査で足りなくなることがあります。その場合は、枠が回復してから残りのチャットを実行し、結果が出そろい次第まとめて貼り戻せば問題なく続けられます。結果が長くて分割出力になり「次」を送ったり、同じチャットに「追加抽出」を送ったりしても、それは同じチャット内の追加メッセージなので、Deep Researchの実行回数を追加で消費しません。</p>
+        <p>はい。ResearchRobo自体はプロンプトであり、Deep Research機能の実行回数や利用枠は、使用しているAIサービス側の制限にそのまま従います。「手軽に試す」は「Deep Research：使わない」のままなら消費しません。「しっかり調べる」は既定で3回前後消費します。狭いテーマは1回、検証の自動追加で最大8回になることがあります。無料プランは実行枠が少なく、1回の調査で足りなくなることがあります。その場合は、枠が回復してから残りのチャットを実行し、結果が出そろい次第まとめて貼り戻せば問題なく続けられます。結果が長くて分割出力になり「次」を送ったり、同じチャットに「追加抽出」を送ったりしても、それは同じチャット内の追加メッセージなので、Deep Researchの実行回数を追加で消費しません。</p>
       </details>
       <details class="faq-item reveal" style="--i:11">
         <summary>2回目以降の調査はもっと簡単にできますか</summary>
-        <p>できます。ファイルや指示を保持できる作業スペース機能があるAIチャットなら、KITファイルを一度登録しておくと、2回目以降は毎回貼り付ける必要がなくなり、調査テーマを伝えるだけで始められます。任意の使い方で、必須ではありません。登録済みの場所で新しい調査を始めるときは、KIT本文抜きの短い起動文だけをコピーして送れます：<button class="btn btn-outline copy-btn copy-btn--short" type="button" style="margin-top:0.5rem;">起動文だけコピー</button><span class="sr-only" aria-live="polite" id="faq-copy-status"></span></p>
+        <p>できます。ファイルや指示を保持できる作業スペース機能があるAIチャットなら、手順書のファイルを一度登録しておくと、2回目以降は毎回貼り付ける必要がなくなり、調査テーマを伝えるだけで始められます。任意の使い方で、必須ではありません。登録済みの場所で新しい調査を始めるときは、手順書の本文を含まない短い開始用の文だけをコピーして送れます：<button class="btn btn-outline copy-btn copy-btn--short" type="button" style="margin-top:0.5rem;">開始用の文だけコピー</button><span class="sr-only" aria-live="polite" id="faq-copy-status"></span></p>
       </details>
       <details class="faq-item reveal" style="--i:12">
         <summary>内容を改変して配布してもいいですか</summary>
-        <p>CC BY 4.0のもとで、クレジット表記をすれば改変・再配布ができます。表記に必要な情報（著作者名・ライセンス・出典URL）は、KIT本文冒頭のLicense行にまとめてあります。</p>
+        <p>CC BY 4.0のもとで、クレジット表記をすれば改変・再配布ができます。表記に必要な情報（著作者名・ライセンス・出典URL）は、手順書の冒頭のLicense行にまとめてあります。ただし、これは手順書とこのサイトに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。</p>
       </details>
       <details class="faq-item reveal" style="--i:13">
         <summary>結果の正確性は保証されますか</summary>
-        <p>KITは出典を突き合わせる監査の工程を組み込んでいますが、最終的な事実確認はご自身でも行ってください。</p>
+        <p>収集時に記録した原文の抜粋と、本文・参考文献を突き合わせて検査する工程を組み込んでいます。ただし原資料そのものを開き直して再確認するわけではないため、重要な数値や主張は、原資料でご自身でも確認してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:14">
-        <summary>調査ワークベンチ（dispatch.html）は何に使いますか</summary>
-        <p>標準の手順では使いません。上級者向けの任意ツールとして残しています（<a href="dispatch.html">dispatch.html</a>）。調査プロンプトを並べて実行状況を管理したり、結果の件数を貼る前に確認したりする用途に使えます。</p>
+        <summary>調査ワークベンチは何に使いますか</summary>
+        <p>標準の手順では使いません（任意の上級者向けツールです：<a href="dispatch.html">調査ワークベンチを開く</a>）。調査プロンプトを並べて実行状況を管理したり、結果の件数を貼る前に確認したりする用途に使えます。</p>
       </details>
       <details class="faq-item reveal" style="--i:15">
         <summary>このサイトはアクセス解析をしていますか</summary>
-        <p>この紹介ページ（index.html）だけ、訪問状況の把握のためGoogle Analyticsを使っています。調査プロンプトのコピー内容や、<a href="viewer.html">ビューア</a>などの作業ページに貼り付けた調査テーマ・レポートの中身は対象外で、それらのページにはこの計測を入れていません（ブラウザ内だけで処理され、どこにも送信されません）。</p>
+        <p>この紹介ページだけ、訪問状況の把握のためGoogle Analyticsを使っています（コピーボタンを押した回数など、ボタン操作の計測を含みます。コピーした内容は送りません。また、この紹介ページは表示のためにGoogle Fontsを読み込みます）。調査プロンプトのコピー内容や、<a href="viewer.html">ビューア</a>などの作業ページに貼り付けた調査テーマ・レポートの中身は対象外で、それらのページにはこの計測を入れていません（ブラウザ内だけで処理されます）。</p>
+      </details>
+      <details class="faq-item reveal" style="--i:16">
+        <summary>入力した内容はどこへ送られますか</summary>
+        <p>手順書・調査テーマ・AIが返したレポートは、あなたが選んだAIチャットのサービス（外部）に送られます。社内情報や個人情報は、勤務先が使用を許可しているAIサービスでだけ扱ってください。AI側のデータの保存や学習への利用は、各サービスの設定と規約によります。一方、このサイトの<a href="viewer.html">ビューア</a>と調査ワークベンチは、貼り付けた内容をお使いのブラウザの中だけで処理し、サーバーには送りません（調査ワークベンチは、プロンプトの一覧と状態だけをお使いのブラウザに保存します）。</p>
       </details>
     </div>
   </div>
@@ -1363,14 +1375,14 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <div class="copy-choice">
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
-            <span class="copy-choice-note">チャット1つ・作業約5分</span>
+            <span class="copy-choice-note">作業<br>5分</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
-            <span class="copy-choice-note">調査チャット＋ビューア・作業約10分<br>（広いテーマは自動分割／大容量AIで）</span>
+            <span class="copy-choice-note">作業<br>10分</span>
           </div>
         </div>
-        <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、KITファイルを添付して送信：<a href="RESEARCH_KIT_lite_latest.md" download>手軽版</a> ／ <a href="RESEARCH_KIT_latest.md" download>フル版</a></p>
+        <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
         <p class="sr-only" aria-live="polite" id="cta-copy-status"></p>
       </div>
     </div>
@@ -1386,11 +1398,11 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   <div class="container">
     <span style="display:inline-flex;align-items:center;gap:0.6rem;">
       <img src="assets/images/logo-mark.svg" alt="" width="20" height="20" aria-hidden="true" style="border-radius:6px;">
-      &copy; 2026 Kohei Shintani, Ph.D. ／ Research KIT v5.2
+      &copy; 2026 Kohei Shintani, Ph.D. ／ Research KIT
     </span>
     <div class="footer-links">
       <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener">CC BY 4.0</a>
-      <button class="footer-mail" id="footer-mail" type="button" aria-label="メールアドレスをコピー">お問い合わせ: mailad4me@gmail.com</button>
+      <button class="footer-mail" id="footer-mail" type="button" aria-label="お問い合わせ: mailad4me@gmail.com（メールアドレスをコピー）">お問い合わせ: mailad4me@gmail.com</button>
     </div>
   </div>
 </footer>
@@ -1592,11 +1604,21 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   function buildShortPromptText() {
     return [
       '登録済みのResearch KIT手順書に従って動作すること。フル版とライト版の両方が登録されている場合は、どちらを使うかを最初に1問で確認すること。',
-      '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。'
+      '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
+      NEXT_INPUT_RULE
     ].join('\n');
   }
 
+  /* 2026-10-17: テーマ欄。1往復目にテーマを渡し、2往復目で素の入力が質問として答えられる型を断つ。
+     改行・連続空白は1空白、区切り行の偽装を防ぐため=3連以上を除き、120字で切る（サロゲートペアを壊さない） */
+  function getThemeText() {
+    var el = document.getElementById('hero-theme');
+    if (!el) return '';
+    return Array.from(String(el.value || '').replace(/={3,}/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 120).join('').trim();
+  }
+  var NEXT_INPUT_RULE = 'ユーザーの次のメッセージは、質問や依頼や題名の形でも調査テーマである。その内容に答えず、Web検索や調査も始めず、手順書のSCRIPT A、つまり調査条件の確認だけを返すこと。';
   function buildFullPromptText(kitText, isLite) {
+    var theme = getThemeText();
     /* 貼り付け時、ChatGPTは先頭が見える。末尾にも同じ案内を置き、
        どちらから読んでも「このまま送信すればよい」と伝わるようにする。
        テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。
@@ -1610,7 +1632,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
        下のlite案内URL（1行下）の両方が、配信元が公開サイト以外なら書き換わる */
     return localizeKitUrls([
       '以下はResearch KIT本文。この手順書に従って動作すること。',
-      '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
+      theme
+        ? '最初の返信では、手順書のSCRIPT 0を出さず、末尾の調査テーマでSCRIPT Aから始めること。'
+        : '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
       '',
       '===== Research KIT ここから =====',
       kitText.trim(),
@@ -1625,7 +1649,11 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         + (isLite
             ? '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直してください。」'
             : '文脈の大きいAI（Google AI Studio・Gemini・Claude など）で新しいチャットを開いて貼り直すか、1チャットで完結する軽量版（ https://ks278810.github.io/research-robo/RESEARCH_KIT_lite_latest.md ）をお使いください。」')
-    ].join('\n'));
+    ].join('\n')) + '\n' + (theme
+      ? ['', '【確定している調査テーマ】' + theme,
+         '上の確認で欠落が見つかった場合は、その指示を優先すること。',
+         'このテーマは最初のメッセージで既に届いている。SCRIPT 0は出さず、SCRIPT Aから始めること。テーマの内容に答えたり、Web検索や調査を始めたりしないこと。'].join('\n')
+      : NEXT_INPUT_RULE);
   }
 
   function fallbackCopy(text) {
@@ -1734,7 +1762,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       /* ボタン内に入れる文言は7字まで（休止ラベルが5〜7字なので、これを超えると
          ボタン幅で折り返して単語の途中で割れる）。説明はボタン下の注記行に出す */
       var failLabel = isShort ? '再試行' : 'コピー失敗';
-      var failStatus = isShort ? 'コピーに失敗しました。もう一度お試しください。' : 'コピーに失敗しました。下のリンクからKITファイルをダウンロードして添付してください。';
+      var failStatus = isShort ? 'コピーに失敗しました。もう一度お試しください。' : 'コピーに失敗しました。下のリンクから手順書のファイルをダウンロードして添付してください。';
       var noteEl = btn.parentElement ? btn.parentElement.querySelector('.copy-choice-note') : null;
       var originalNote = noteEl ? noteEl.innerHTML : '';
       var place = btn.closest('#hero-copy-box') ? 'hero' : (btn.closest('.cta-final') ? 'cta' : (btn.closest('#faq') ? 'faq' : 'other'));
@@ -1753,9 +1781,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         }, ok ? 1800 : 2600);
         btn.textContent = ok ? 'コピーしました' : (message || failLabel);
         btn.setAttribute('data-copied', ok ? 'true' : 'false');
-        if (noteEl) { noteEl.textContent = ok ? 'AIチャットに貼り付けて送信' : '下のKITファイルを添付'; }
         if (statusEl) { statusEl.textContent = ok ? 'コピーしました。AIチャットに貼り付けてください。' : failStatus; }
-        /* コピーできない環境では、ボタンのすぐ下にKITファイルの添付手段を出す
+        /* コピーできない環境では、ボタンのすぐ下に手順書のファイルの添付手段を出す
            （以前は折りたたまれたFAQの中にしかリンクが無く、行き止まりだった） */
         var fbEl = (btn.closest('.copy-box') || btn.parentElement).querySelector('.copy-fallback');
         if (fbEl && !isShort) fbEl.hidden = ok;
@@ -1786,7 +1813,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         btn.textContent = '準備中…';
         /* ボタンには短いラベルだけを入れ、長い説明は注記行と読み上げ用テキストへ回す */
         var fetchFail = function () {
-          failStatus = 'KIT本文を取得できませんでした。下のリンクからKITファイルをダウンロードして添付してください。';
+          failStatus = 'KIT本文を取得できませんでした。下のリンクから手順書のファイルをダウンロードして添付してください。';
           done(false);
         };
         var isLiteKit = btn.getAttribute('data-kit') === 'lite';
@@ -1930,7 +1957,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   function initReportFlip() {
     var stage = document.getElementById('rf-stage');
     if (!stage) return;
-    var TOTAL = 15;
+    var TOTAL = 14;   /* assets/report/page-NN.webp の枚数（dev/scripts/showcase.mjs が生成。kit_contract が枚数一致を検査） */
     var current = 1;
     var animating = false;
     var imgA = document.getElementById('rf-page-a');
@@ -1962,7 +1989,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         if (started) return;
         started = true;
         standby.src = target;
-        standby.alt = 'ベンチマーク調査レポート実例 ' + next + 'ページ目';
+        standby.alt = 'レポート実例（内容は架空のサンプル） ' + next + 'ページ目';
         standby.removeAttribute('aria-hidden');
         standby.classList.remove('rf-out-left', 'rf-from-left', 'is-active');
         if (dir === 'prev') standby.classList.add('rf-from-left');
@@ -2028,7 +2055,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 
     function syncLightbox(n) {
       lbImg.src = src(n);
-      lbImg.alt = 'ベンチマーク調査レポート実例 ' + n + 'ページ目（拡大表示）';
+      lbImg.alt = 'レポート実例（内容は架空のサンプル） ' + n + 'ページ目（拡大表示）';
       lbCount.textContent = n + ' / ' + TOTAL;
     }
     onChange(function (n) { if (!lb.hidden) syncLightbox(n); });

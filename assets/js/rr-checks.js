@@ -542,7 +542,7 @@
          WP接頭辞は0詰めしない数字だけ（R|1-7|）なので、ここでもWPを剥がし、
          数字なら0詰めを取り除いて揃える（「WP02」のような表記でも解決できるように） */
       if (mDone) {
-        var wpRaw = mDone[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
+        var wpRaw = mDone[1].replace(/[^0-9A-Za-z]/g, "").replace(/^WP/i, "");  /* 2026-10-16(wide監査A): 引用符つき "WP01" は、先に記号を除いてからWPを剥がす */
         wp = /^\d+$/.test(wpRaw) ? String(parseInt(wpRaw, 10)) : wpRaw;
         return;
       }
@@ -869,7 +869,7 @@
         v51 ? "このKITの形式のレポートですが、data-source-type が参考文献に付与されていません。参考文献は " + refs.length + " 件。"
             : "旧形式のレポートのため一次資料の判定はしません。参考文献は " + refs.length + " 件。",
         v51 ? { title: "参考文献の種類（一次資料かどうか）の情報がありません" }
-            : { kind: "na", title: "旧形式のレポートのため、一次資料の有無は判定していません" });
+            : { kind: "na", title: "この項目は、このレポートでは判定していません（一次資料の有無）" });
     } else {
       var primaryCount = 0;
       typedRefs.forEach(function (li) {
@@ -930,7 +930,7 @@
           v51 ? "このKITの形式のレポートですが、data-claim属性がどの引用にも付与されていません。引用は " + sups.length + " 件。"
               : "旧形式のレポートのため判定しません。引用は " + sups.length + " 件。",
           v51 ? { title: "引用と調査記録を結びつける情報が抜けています" }
-              : { kind: "na", title: "旧形式のレポートのため、この項目は判定していません" });
+              : { kind: "na", title: "この項目は、このレポートでは判定していません" });
       } else {
         addResult(results, lacking === 0, "引用に主張（data-claim）が紐づいている",
           lacking ? "data-claimが無い引用: " + lacking + " 件 / 全 " + sups.length + " 件" : "",
@@ -957,6 +957,60 @@
       addResult(results, noKey.length === 0, "各章の見出し直後にキーメッセージがある",
         noKey.length ? "見出しの直後が .key-message でない章: " + noKey.join("、") : "",
         { title: noKey.length ? "冒頭に要点（キーメッセージ）が無い章があります" : "各章の冒頭に要点があります" });
+    }
+
+    // 10b〜10e. 読者のための検査（2026-10-16・levers監査「レポートの内容とデザイン」）。KIT が既に定める規則だが検査が無く、
+    //   実走の見本では破られていた（要約10項目・結論文なし・1文に引用6件・根拠確認の方法なし・参考文献に not_stated）。
+    //   どれも warn・local（AIに送らない。完成は止めない）。v5.1以上（isV51）の文書だけで出す。ライトも isV51 が真（凍結フィクスチャ v4・無印は不変）
+    if (v51) {
+      var exec = doc.querySelector(".exec-summary");
+      if (exec) {
+        var headline = exec.querySelector("p.headline");
+        var items = exec.querySelectorAll("li").length;
+        var execOk = !!headline && items >= 3 && items <= 5;
+        addResult(results, execOk, "要約に結論1文と要点3〜5件がある",
+          execOk ? "" : ((headline ? "" : "結論1文（p.headline）が無い。") + ((items >= 3 && items <= 5) ? "" : "要点が " + items + " 件（3〜5件が目安）")),
+          { kind: execOk ? "ok" : "warn", local: true,
+            title: execOk ? "要約は結論1文と要点3〜5件の形です" : "要約の形が目安（結論1文＋要点3〜5件）と違います（このままでも完成できます）" });
+      }
+      /* 1文あたりの引用は3件まで（§19.2）。4件以上は表の出典列へ。文の区切りは「。」 */
+      var over = [];
+      var scope = Array.prototype.slice.call(doc.querySelectorAll(".exec-summary li, .exec-summary p, .body-columns p, .body-columns li"));
+      scope.forEach(function (el) {
+        var segs = String(el.innerHTML || "").split("。");
+        for (var si = 0; si < segs.length; si++) {
+          var n = (segs[si].match(/<a\s[^>]*href="#ref-/g) || []).length;
+          if (n >= 4) {
+            var sec = el.closest ? el.closest("section") : null;
+            var h2 = sec ? sec.querySelector("h2") : null;
+            over.push((h2 ? (h2.textContent || "").trim() : "要約") + "（" + n + "件）");
+            break;
+          }
+        }
+      });
+      addResult(results, over.length === 0, "1文あたりの引用は3件以内である",
+        over.length ? "4件以上の文がある章: " + over.slice(0, 5).join("、") + "（4件以上は表の出典列へ）" : "",
+        { kind: over.length ? "warn" : "ok", local: true,
+          title: over.length ? "1文に引用が4件以上ある箇所があります（読者が文と出典を結べません。このままでも完成できます）" : "引用は1文3件以内です" });
+      var method = doc.querySelector("#sec-method");
+      if (method) {
+        var mt = method.textContent || "";
+        var tierOk = /原資料のURLを開いて|原文抜粋との内部整合|原資料そのものは再確認/.test(mt);
+        addResult(results, tierOk, "調査手法に根拠確認の方法が書かれている",
+          tierOk ? "" : "「原資料のURLを開いて抜粋と照合した」か「原文抜粋との内部整合を確認した（原資料そのものは再確認していない）」のどちらかが必要です",
+          { kind: tierOk ? "ok" : "warn", local: true,
+            title: tierOk ? "根拠確認の方法が書かれています" : "調査手法に根拠確認の方法（原資料を開いたか・抜粋の照合のみか）がありません（このままでも完成できます）" });
+      }
+      var rawTok = [];
+      Array.prototype.forEach.call(doc.querySelectorAll('li[id^="ref-"]'), function (li) {
+        var txt = li.textContent || "";
+        var mm = txt.match(/not_stated|undated|accessed \d{4}|active posting|\bn\.d\.|unknown date/i);
+        if (mm) rawTok.push(mm[0]);
+      });
+      addResult(results, rawTok.length === 0, "参考文献に未整形の記号が無い",
+        rawTok.length ? "見つかった記号: " + Array.from(new Set(rawTok)).slice(0, 5).join(", ") + "（日付不明は「日付不明」、閲覧日は書かない）" : "",
+        { kind: rawTok.length ? "warn" : "ok", local: true,
+          title: rawTok.length ? "参考文献に英語の状態記号（not_stated 等）が残っています（このままでも完成できます）" : "参考文献に未整形の記号はありません" });
     }
 
     // 11. メタ情報と表紙の記載の一致
@@ -1013,7 +1067,7 @@
         v51 ? "このKITの形式のレポートですが、meta name=\"rr:confirmed-count\" がありません。"
             : "meta name=\"rr:confirmed-count\" が無いため判定できません。",
         v51 ? { title: "調査で確認した件数の記載が無く、引用の網羅を判定できません" }
-            : { kind: "na", title: "旧形式のレポートのため、この項目は判定していません" });
+            : { kind: "na", title: "この項目は、このレポートでは判定していません" });
     } else {
       var total = parseInt(countOf(ccEl.getAttribute("content")), 10);
       var claims = citedClaimSet(doc);
@@ -1214,11 +1268,16 @@
       }
       body = stripTrailingFence(body.replace(/\s+$/, "")).replace(/^\s*\n/, "");
       parts.push({ k: mk.k, n: mk.n, body: body, hasEnd: hasEnd, endedByNextMarker: endedByNextMarker });
-      nSet[mk.n] = true;
-      if (mk.n > maxN) maxN = mk.n;
+      nSet[mk.n] = (nSet[mk.n] || 0) + 1;
     });
+    /* 2026-10-17(wide監査B1): 総数は最も多く現れた値。同数なら大きい方。迷い込んだ「5/4」が他のPARTと
+       一緒に届いても、総数4に引きずられて受け取り済みのPARTが落ちない */
     var ns = Object.keys(nSet);
-    if (ns.length > 1) warnings.push("PARTの総数が食い違っています（" + ns.join(" と ") + "）。大きい方（" + maxN + "）を採用します");
+    ns.forEach(function (key) {
+      var kn = parseInt(key, 10);
+      if (!maxN || nSet[key] > nSet[maxN] || (nSet[key] === nSet[maxN] && kn > maxN)) maxN = kn;
+    });
+    if (ns.length > 1) warnings.push("PARTの総数が食い違っています（" + ns.join(" と ") + "）。最も多い総数（" + maxN + "）を採用します");
     parts.forEach(function (p) { if (p.k > maxN || p.k < 1) warnings.push("PART " + p.k + " は総数 " + maxN + " の範囲外です"); });
     return { legacy: false, parts: parts, maxN: maxN, warnings: warnings };
   }
@@ -2069,6 +2128,61 @@
     return res;
   }
 
+  /* 2026-10-16: 引用番号の整形と参考文献の日付。いずれも文字列処理（DOMParser は使わない: jsdom では呼ぶたびに文書が
+     保持されてテストがメモリ不足になった。finalize のたびに呼ぶ処理は軽くする）。
+     付録（別採番）の範囲は触らない。変更が無ければ同じ文字列を返す。 */
+  function appendixRanges(s) {
+    var ranges = [], re = /<section\b[^>]*class="[^"]*\bappendix\b[^"]*"[^>]*>/g, m;
+    while ((m = re.exec(s))) {
+      var end = s.indexOf("</section>", m.index);
+      ranges.push([m.index, end < 0 ? s.length : end]);
+    }
+    return ranges;
+  }
+  var RE_CITE_RUN = /(?:<sup>(?:<a\b[^>]*>\[[^\]]*\]<\/a>)+<\/sup>)+/g;
+  var RE_CITE_A = /<a\b([^>]*)>(\[[^\]]*\])<\/a>/g;
+  function attrOf(attrs, name) { var m = new RegExp("\\b" + name + '="([^"]*)"').exec(attrs); return m ? m[1] : ""; }
+  /* 隣り合う <sup>（間に文字が無い）を1つにまとめ、同じ資料の番号は重複させず（主張IDは data-claim に連結）、昇順に並べる。
+     「[1][1][2]」「[26][28][26]」のような機械的な重複を読者に見せない */
+  function tidyCites(html) {
+    var s = String(html || "");
+    if (s.indexOf("<sup>") < 0) return s;
+    var ranges = appendixRanges(s);
+    var changed = false;
+    var out = s.replace(RE_CITE_RUN, function (run, offset) {
+      for (var ri = 0; ri < ranges.length; ri++) if (offset >= ranges[ri][0] && offset < ranges[ri][1]) return run;
+      var byHref = {}, order = [], m;
+      RE_CITE_A.lastIndex = 0;
+      while ((m = RE_CITE_A.exec(run))) {
+        var href = attrOf(m[1], "href"), claim = attrOf(m[1], "data-claim");
+        if (!byHref[href]) { byHref[href] = { attrs: m[1], text: m[2], claims: [] }; order.push(href); }
+        claim.split(/\s+/).filter(Boolean).forEach(function (c) { if (byHref[href].claims.indexOf(c) === -1) byHref[href].claims.push(c); });
+      }
+      var numOf = function (h) { var n = /(\d+)\s*$/.exec(h); return n ? parseInt(n[1], 10) : 0; };
+      var sorted = order.slice().sort(function (x, y) { return numOf(x) - numOf(y); });
+      var rebuilt = "<sup>" + sorted.map(function (h) {
+        var e = byHref[h], attrs = e.attrs;
+        if (e.claims.length) {
+          attrs = /\bdata-claim="[^"]*"/.test(attrs) ? attrs.replace(/\bdata-claim="[^"]*"/, 'data-claim="' + e.claims.join(" ") + '"') : attrs + ' data-claim="' + e.claims.join(" ") + '"';
+        }
+        return "<a" + (attrs.charAt(0) === " " ? "" : " ") + attrs + ">" + e.text + "</a>";
+      }).join("") + "</sup>";
+      if (rebuilt !== run) changed = true;
+      return rebuilt;
+    });
+    return changed ? out : s;
+  }
+  /* 参考文献の書誌テキストの日付（2025-03-10・2025-03）は折り返さない（ハイフンの位置で「2026-/04-10」と割れて読めなかった）。
+     URL（href）の中の日付は包まない。外部リンクの <a target="_blank"> の表示テキストだけが対象 */
+  function polishRefs(html) {
+    var s = String(html || "");
+    if (s.indexOf('target="_blank"') < 0) return s;
+    return s.replace(/(<a\b[^>]*target="_blank"[^>]*>)([^<]*)(<\/a>)/g, function (all, a1, text, a3) {
+      var t2 = text.replace(/(\d{4}-\d{2}(?:-\d{2})?)/g, '<span class="nb">$1</span>');
+      return t2 === text ? all : a1 + t2 + a3;
+    });
+  }
+
   /* 集計値をDOMから計算する（LLMは数字を書かない） */
   function computeReportStats(doc) {
     var st = { refCount: 0, primaryCount: 0, primaryRatio: "－", appendixCount: 0, consultedCount: 0, publisherCount: 0,
@@ -2665,11 +2779,7 @@
       /* 「｜ResearchRobo」サフィックスを先に外してから「（…調査）」を外す。
          逆順だと（…調査）の右にある｜ResearchRobo部分が正規表現の$に阻まれず
          残ってしまい、ファイル名に元号や年月が二重に付く */
-      var theme = titleText
-        .replace(/\s*[|｜／/]\s*ResearchRobo\s*$/i, "")
-        .replace(/[（(]\s*\d{4}\s*[-年/.]\s*\d{1,2}\s*月?\s*調査[^）)]*[）)]\s*$/, "")
-        .replace(/[（）()「」『』【】〈〉《》]/g, "")
-        .trim();
+      var theme = themeFromTitle(titleText);
       var ymd = dateStr.replace(/-/g, "");
       return { theme: theme, ymd: /^\d{8}$/.test(ymd) ? ymd : "", researchId: researchId };
     } catch (e) {
@@ -2682,7 +2792,7 @@
     var parts = [];
     if (m.ymd) parts.push(m.ymd);
     if (m.theme) parts.push(sanitizeForFilename(m.theme).slice(0, 24));
-    if (m.researchId) parts.push(sanitizeForFilename(m.researchId));
+    /* 2026-10-15: research-id（内部ID）はファイル名に出さない（meta には残る。同僚に送る名前に内部語が出ていた） */
     var name = parts.join("_");
     return (name || "research-robo-report") + ".html";
   }
@@ -2692,6 +2802,34 @@
      形式は YYMMDD_調査名（例: 260830_EV充電網）。日付を先頭に置くと保存先で
      時系列に並ぶ。reportMeta は8桁のまま返す（suggestFilename が使うため）ので、
      ここで2桁年に落とす */
+  /* 2026-10-15(レポートの内容とデザイン): 印刷時のランニングヘッド（@page @top-center）を "ResearchRobo" から
+     レポート題名に差し替える。題名は CSS 文字列としてエスケープ（" と \ と改行）し、コードポイントで40字に切る。
+     題名が取れなければ既定のまま返す */
+  function cssString(s) {
+    /* <style> の中に入るので "<" も CSS エスケープする（題名の </style> が本文へ漏れない。独立レビューで実行確認） */
+    return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3c ").replace(/[\r\n\f]+/g, " ");
+  }
+  /* reportMeta（DOMParser で文書全体を再パース）は finalize のたびに呼ぶと重く、jsdom では文書が保持されて
+     テストがメモリ不足になった（2026-10-16 実測）。ここでは <title> を正規表現で取り出す */
+  function themeFromTitle(titleText) {
+    return String(titleText || "")
+      .replace(/\s*[|｜／/]\s*ResearchRobo\s*$/i, "")
+      .replace(/[（(]\s*\d{4}\s*[-年/.]\s*\d{1,2}\s*月?\s*調査[^）)]*[）)]\s*$/, "")
+      .replace(/[（）()「」『』【】〈〉《》]/g, "")
+      .trim();
+  }
+  function reportCss(baseCss, html) {
+    var base = String(baseCss || "");
+    var tm = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(String(html || "").slice(0, 20000));
+    var raw = tm ? tm[1].replace(/<[^>]*>/g, "") : "";
+    raw = raw.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");   /* &amp; は最後（&amp;lt; を二重に復号しない） */
+    var theme = themeFromTitle(raw);
+    if (!theme) return base;
+    var cps = Array.from ? Array.from(theme) : theme.split("");
+    var short = cps.slice(0, 40).join("");
+    /* 関数の置換: 題名の $& $' $$ を置換パターンとして解釈させない（独立レビューで実行確認） */
+    return base.replace('@top-center{content:"ResearchRobo";', function () { return '@top-center{content:"' + cssString(short) + '";'; });
+  }
   function pdfTitle(html) {
     var m = reportMeta(html);
     var parts = [];
@@ -2773,6 +2911,9 @@
     sanitizeForFilename: sanitizeForFilename,
     suggestFilename: suggestFilename,
     pdfTitle: pdfTitle,
+    reportCss: reportCss,
+    tidyCites: tidyCites,
+    polishRefs: polishRefs,
     downloadHtml: downloadHtml
   };
 

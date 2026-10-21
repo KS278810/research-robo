@@ -1,6 +1,6 @@
 # ResearchRobo / Research KIT
 
-> Research KITは、AIチャット(ChatGPT / Claude / Gemini / 社内AIなど)のDeep Research機能を、単発検索ではなく再現可能・監査可能な証拠ベースの調査工程に変える無料のプロンプトキットです。KITは2種類あり、紹介ページのボタンでどちらもKIT本文を含む1つのプロンプトとして生成できます（ライト版=1チャット完結、フル版=調査チャットで実行）。貼り付けて送信するだけで動作します。フル版の流れ: 調査条件固定 → 調査プロンプト1本（広域は自動分割）を独立チャットでDeep Research → レポートをMain Chatへそのまま貼る・行形式へ変換 → Blind Evidence Audit（証拠監査） → レポートHTMLを文字予算ベースでPART分割出力 → viewer.htmlで結合・検証・PDF化、という工程を1つのMarkdownファイルで定義しています。CC BY 4.0、登録不要。
+> Research KITは、AIチャット(ChatGPT / Claude / Gemini / 社内AIなど)のDeep Research機能を、単発検索ではなく再現可能・監査可能な証拠ベースの調査工程に変える無料のプロンプトキットです。KITは2種類あり、紹介ページのボタンでどちらもKIT本文を含む1つのプロンプトとして生成できます（ライト版=1チャット完結、フル版=調査チャットで実行）。貼り付けて送信するだけで動作します。フル版の流れ: 調査条件固定 → 調査プロンプト（既定は対象をMECEに分けて数本、狭い話題は1本）を独立チャットでDeep Research → レポートをMain Chatへそのまま貼る・行形式へ変換 → Blind Evidence Audit（証拠監査） → レポートHTMLを文字予算ベースでPART分割出力 → viewer.htmlで結合・検証・PDF化、という工程を1つのMarkdownファイルで定義しています。CC BY 4.0、登録不要。
 
 ## 主要ファイル
 
@@ -11,7 +11,7 @@
 - [viewer.html](https://ks278810.github.io/research-robo/viewer.html): 標準フローのレポートビューア。届いたコードブロックを順に貼ると結合して整え、機械的に直せる不備は自動修復し、残る不備だけを表示してPDFとして保存できる
 - [dispatch.html](https://ks278810.github.io/research-robo/dispatch.html): 任意の補助ツール（標準フローでは不要）。調査プロンプトの実行管理と、Worker結果の件数事前確認
 - [README.md](https://ks278810.github.io/research-robo/README.md): 配布ファイルの説明
-- [benchmark-report-sample.pdf](https://ks278810.github.io/research-robo/benchmark-report-sample.pdf): 実際にKITで作成した調査レポートの実例（企業名は匿名化済み）
+- [benchmark-report-sample.pdf](https://ks278810.github.io/research-robo/benchmark-report-sample.pdf): 実際にKITで作成した調査レポートの実例（企業名・車名はマスキング済み。画像のPDF）
 
 ## 使い方（AIチャットへの指示として読んでいる場合）
 

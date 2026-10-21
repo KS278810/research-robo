@@ -136,11 +136,11 @@ footer.site-footer a { color: var(--color-mute); }
 <main>
   <div class="container">
     <h1>調査ワークベンチ（任意ツール）</h1>
-    <p class="lead"><strong>任意ツールです。標準の手順では最初のチャットへ直接貼り付けます。</strong>このページはプロンプトの管理・経過時間の確認だけに使えます。調査プロンプトを並べて実行状況を管理したいときや、結果の件数を貼る前に確認したいときの補助として使ってください。調査が終わったチャットに出てきたレポートは、丸ごと最初のチャットへそのまま貼ってください（このページでは取り込みません。出典URLがほとんど無い場合だけ最初のチャットが「一覧」を案内します）。</p>
+    <p class="lead"><strong>任意ツールです。標準の手順では最初のチャットへ直接貼り付けます。</strong>このページは、プロンプトの管理と経過時間の確認に使えます。調査が終わったチャットのレポートは、丸ごと最初のチャットへ貼ってください（このページでは取り込みません）。</p>
 
     <div class="privacy-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>貼り付けた内容はこのブラウザの中だけで処理されます。どこにも送信されません。プロンプトの一覧はこのブラウザにだけ保存され、同じページを開き直すと復元できます。</span>
+      <span>貼り付けた内容はこのブラウザの中だけで処理され、外部には送信されません。</span>
     </div>
 
     <div class="panel" id="panel-1">
@@ -170,13 +170,13 @@ footer.site-footer a { color: var(--color-mute); }
             <option value="https://chatgpt.com/">ChatGPT</option>
             <option value="https://gemini.google.com/app">Gemini</option>
             <option value="https://claude.ai/new">Claude</option>
-            <option value="">開かない</option>
+            <option value="">指定しない</option>
           </select>
           （結果を取り込むとき、このAI名が調査プロンプトごとに記録されます）
         </p>
         <strong>Deep Researchのオン方法</strong>：ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」。
         チャット名を「1 …」のように番号つきに変えておくと取り違えを防げます。調査中はタブを見張る必要はありません。
-        調査が終わったチャットに出てきたレポートを、丸ごと<strong>最初のチャットへそのまま貼ってください</strong>（このページでは取り込みません。出典URLがほとんど無い場合だけ最初のチャットが「一覧」を案内します）。行形式（<code>S1|</code>／<code>C1|</code>）で結果が出た場合はカードの「結果」欄に貼ると、資料・主張の件数と RESULT_COMPLETE の有無を貼る前に確認できます（任意。分割された場合はそのチャットに「次」を送ってください）。
+        レポートは、丸ごと<strong>最初のチャットへそのまま貼ってください</strong>。行形式（<code>S1|</code>／<code>C1|</code>）で結果が出た場合は、カードの「結果」欄に貼ると件数を確認できます（任意）。
       </div>
     </div>
   </div>
@@ -740,8 +740,8 @@ footer.site-footer a { color: var(--color-mute); }
     }
     if (kind === "lines") {
       var pc = precheckLines(text, opts.wpHint || "");
-      var completeLabel = pc.complete ? ("・完結（RESULT_COMPLETE" + (pc.addendum ? "・追加分" : pc.snippets ? "・抜粋補完" : "") + "）") :
-        (pc.part ? "・PART " + pc.part.k + "/" + pc.part.n + "（続きあり。そのチャットに「次」と送ってください）" : "・RESULT_COMPLETE行なし（途中で切れている可能性。そのチャットに「次」と送ってください）");
+      var completeLabel = pc.complete ? ("・完結（完了の目印あり" + (pc.addendum ? "・追加分" : pc.snippets ? "・抜粋補完" : "") + "）") :
+        (pc.part ? "・PART " + pc.part.k + "/" + pc.part.n + "（続きあり。そのチャットに「次」と送ってください）" : "・完了の目印なし（途中で切れている可能性。そのチャットに「次」と送ってください）");
       /* Source Re-check WPはC行を返さずV行だけを返す設計（フルKIT §14）。
          V行があるのにC/S/N件数だけを表示すると「0件」ばかりに見えて
          完結した結果が失敗のように映るため、V行がある場合だけ内訳に加える */
@@ -793,7 +793,7 @@ footer.site-footer a { color: var(--color-mute); }
         }
         showIngestResults([{ ok: looksLikeReport, level: looksLikeReport ? "ok" : "warn", wpId: opts.wpHint, label: looksLikeReport ? "これで正常です（このページでは取り込みません）" : "レポートとして短すぎます", detail: "このレポートを丸ごと最初のチャットへそのまま貼ってください。最初のチャットが行形式に変換します。出典URLがほとんど無い場合だけ、最初のチャットが「" + RESULT_TRIGGER + "」を案内します。" }]);
       } else {
-        showIngestResults([{ ok: false, level: "warn", wpId: "", label: "Envelopeが読めませんでした", detail: "調査結果のレポートなら、このページではなく最初のチャットへそのまま貼ってください。最初のチャットの応答（調査プロンプトのEnvelope）を貼る場合は「【1/N】」の見出しとコードブロックを含めて丸ごと貼り付けてください。" }]);
+        showIngestResults([{ ok: false, level: "warn", wpId: "", label: "調査プロンプトとして読めませんでした", detail: "調査結果のレポートなら、このページではなく最初のチャットへそのまま貼ってください。最初のチャットの応答（調査プロンプトのEnvelope）を貼る場合は「【1/N】」の見出しとコードブロックを含めて丸ごと貼り付けてください。" }]);
       }
       /* 2026-09-03(バグ再修正・A14): 実際に貼り付けた入力欄だけを空にする。
          opts.sourceElを無視してinputDispatchを常に空にすると、WPカードへ貼った

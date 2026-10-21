@@ -107,7 +107,7 @@ textarea#input-html:focus { outline: 2px solid var(--color-accent); outline-offs
 .btn-primary { background: linear-gradient(135deg, var(--color-accent), var(--color-sub-text)); color: #fff; box-shadow: var(--shadow-sm); }
 .btn-outline { background: transparent; color: var(--color-main); border: 1.5px solid var(--color-border); }
 .btn-outline:hover { border-color: var(--color-accent); color: var(--color-accent); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 #check-results { display: none; }
 #check-results.is-visible { display: block; }
@@ -258,12 +258,13 @@ footer.site-footer a { color: var(--color-mute); }
 
     <div class="privacy-note">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>貼り付けた内容は外部に送信されません。このページは外部サービスを読み込みません。</span>
+      <span>このページは、貼り付けた内容をお使いのブラウザの中だけで処理し、外部には送信しません。</span>
     </div>
 
     <div class="panel">
       <h2 id="intake-heading">1. 届いたPARTを貼り付け</h2>
-      <textarea id="input-html" placeholder="ここに貼り付け（届いた順に1つずつ。貼るだけで取り込まれます）&#10;調査結果の一覧（コードブロックの中身）も貼ると、付録Cに主張台帳が付きます（任意）"></textarea>
+      <p class="empty-hint" id="intake-hint">AIは長いレポートを「PART 1/3」のように分けて返します。届いた順に、すべて下の欄へ貼ってください。</p>
+      <textarea id="input-html" aria-labelledby="intake-heading" placeholder="ここに貼り付け（届いた順に1つずつ。貼るだけで取り込まれます）"></textarea>
       <div class="actions">
         <button class="btn btn-primary" id="btn-check" type="button" disabled>検証してプレビュー</button>
         <button class="btn btn-outline" id="btn-clear" type="button">クリア</button>
@@ -301,6 +302,7 @@ footer.site-footer a { color: var(--color-mute); }
         <button class="btn btn-outline" id="btn-download" type="button" disabled>HTMLをダウンロード</button>
       </div>
       <p class="empty-hint" style="margin-top:0.75rem;">保存は必ずこのページの「PDFとして保存」から。</p>
+      <p class="empty-hint" id="print-note">印刷ダイアログでは「背景のグラフィック」をON、「ヘッダーとフッター」をOFFにしてください（Chrome・Edge では、通常そのままで構いません）。</p>
       <details class="print-help">
         <summary>うまくいかないとき</summary>
         <ul>
@@ -398,6 +400,8 @@ footer.site-footer a { color: var(--color-mute); }
   /* 1件の結果行。表示は素人向けの title（無ければ label）＋ next（次の一手）、
      AI向けの label / detail は「詳細」折りたたみに入れる。
      data-label / data-kind / data-ok はテスト・機械読み取り用 */
+  /* 「この項目は判定していません」と書かれた行を、緑の◎（問題なし）に数えない（判定していないのに完成と誤解させない） */
+  function isUndecided(r) { return /判定していません|判定しません|判定できません/.test(String(r.title || "") + String(r.label || "")); }
   function buildRow(r) {
     var kind = kindOf(r);
     var li = document.createElement("li");
@@ -405,10 +409,11 @@ footer.site-footer a { color: var(--color-mute); }
     li.setAttribute("data-label", r.label);
     li.setAttribute("data-kind", kind);
     li.setAttribute("data-ok", r.ok ? "1" : "0");
-    var icon = kind === "action" ? iconBad() : (kind === "warn" ? iconWarn() : iconOk());
+    var undecided = (kind === "ok" || kind === "na") && isUndecided(r);
+    var icon = kind === "action" ? iconBad() : (kind === "warn" ? iconWarn() : (undecided ? '<span class="check-icon" aria-hidden="true">－</span>' : iconOk()));
     var inner = '<div class="check-title">' + escapeHtml(r.title || r.label) + "</div>";
     if (r.next) inner += '<div class="check-next">次の一手: ' + escapeHtml(r.next) + "</div>";
-    inner += '<details class="check-tech"><summary>詳細</summary>' +
+    inner += '<details class="check-tech"><summary>詳細（AIに貼り戻す文面です）</summary>' +
       '<div class="check-tech-label">' + escapeHtml(r.label) + "</div>" +
       (r.detail ? '<div class="check-detail">' + escapeHtml(r.detail) + "</div>" : "") +
       "</details>";
@@ -438,18 +443,21 @@ footer.site-footer a { color: var(--color-mute); }
   function renderResults(results) {
     lastResults = results;
     listEl.innerHTML = "";
-    var actions = [], warns = [], oks = [], autos = [];
+    var actions = [], warns = [], oks = [], autos = [], undecideds = [];
     results.forEach(function (r) {
       var k = kindOf(r);
       if (k === "action") actions.push(r);
       else if (k === "warn") warns.push(r);
-      else if (k === "log" || k === "na") autos.push(r);
+      else if (k === "log") autos.push(r);
+      else if (isUndecided(r)) undecideds.push(r);   /* 2026-10-17(wide監査B3): na より先に見る。逆順だと判定していない行が「自動で整えました」に入り、この群が常に空だった */
+      else if (k === "na") autos.push(r);
       else oks.push(r);
     });
     actions.forEach(function (r) { listEl.appendChild(buildRow(r)); });
     warns.forEach(function (r) { listEl.appendChild(buildRow(r)); });
     if (oks.length) listEl.appendChild(buildGroup("◎ 問題なし（" + oks.length + "項目）", oks));
     if (autos.length) listEl.appendChild(buildGroup("◎ 自動で整えました（" + autos.length + "件）", autos));
+    if (undecideds.length) listEl.appendChild(buildGroup("－ 今回は判定しなかった項目（" + undecideds.length + "項目）", undecideds));
     resultsBox.classList.add("is-visible");
     if (issueActions) issueActions.hidden = !issueText(results);
   }
@@ -848,7 +856,7 @@ footer.site-footer a { color: var(--color-mute); }
         if (n > 0) {
           statusTitle.textContent = "×の項目が" + n + "件 → 「不備をコピー」を押してAIチャットに貼り付けてください";
           /* 常設の説明文を置かない代わりに、赤が出たときだけ貼り戻しの作法を出す */
-          guidance = "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）";
+          guidance = partStore.n ? "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）" : "修正したレポートは、クリアせずそのまま上の欄へ貼ると置き換わります";
           if (fixRounds >= 1) {
             /* 出し直しは1回まで。2回目以降も残る赤は、直させ続けるより
                そのまま保存させたほうがよい（ユーザー方針） */
@@ -866,7 +874,7 @@ footer.site-footer a { color: var(--color-mute); }
              「不備をコピー」を案内する（クリアして貼り直しても、原因がAI自身の
              重複出力なら再発するだけで直らない） */
           statusTitle.textContent = "×の項目があります → 「不備をコピー」を押してAIチャットに貼り付けてください";
-          guidance = "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）";
+          guidance = partStore.n ? "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）" : "修正したレポートは、クリアせずそのまま上の欄へ貼ると置き換わります";
         } else {
           /* local:true の赤しかなく、PARTも特定できない場合。AIに送っても直せないので
              「不備をコピー」は案内せず、貼り直しだけを促す（「クリアせずそのまま貼る」は誤り） */
@@ -978,7 +986,8 @@ footer.site-footer a { color: var(--color-mute); }
     /* AIが短い記法で書いた引用・参考文献を、従来と同一のHTMLへ戻す。
        フルHTMLで書かれた文書には該当パターンが無いので素通しになる */
     var expanded = RR.expandCompact(html);
-    var styled = RR.ensureStyle(expanded.html, CSS);
+    /* 2026-10-15: ランニングヘッドをレポート題名にした CSS を注入する */
+    var styled = RR.ensureStyle(expanded.html, RR.reportCss(CSS, expanded.html));
     var v51 = !!(info.parts) || /\{\{\s*RR:/.test(styled.html) || kitVersionAtLeast51(styled.html);
     /* 自動修復 → 採番 の順。修復で参考文献が増減するため採番より前に行う */
     /* 2026-09-04(第4回徹底監査・HIGH-3): legacy文書（v5.1未満）もsanitizeOnlyで
@@ -986,7 +995,8 @@ footer.site-footer a { color: var(--color-mute); }
        統合・付録移動・見出し再採番などv5.1専用の処理はv51のときだけautoRepairで行う */
     var rep = v51 ? RR.autoRepair(styled.html) : RR.sanitizeOnly(styled.html);
     var rn = v51 ? RR.renumberRefs(rep.html) : { html: rep.html, changed: false, refCount: 0, unreferenced: [] };
-    var filled = RR.fillTokens(rn.html);
+    /* 2026-10-16: 引用番号の重複除去・昇順（[1][1][2]→[1][2]） */
+    var filled = RR.fillTokens(v51 ? RR.polishRefs(RR.tidyCites(rn.html)) : rn.html);
     currentHtml = filled.html;
     var checkInfo = {
       strippedFence: !!info.strippedFence,
@@ -1136,16 +1146,25 @@ footer.site-footer a { color: var(--color-mute); }
     var replaced = [];
     var notices = [];
     var warnings = res.warnings.slice();
-    var plan = RR.partSetPlan(partStore, res);
-    applyPlan(plan, notices);
+    /* 2026-10-17(wide監査B1): 総数の範囲外のPART（例: 全3個なのに4/3、全4個なのに5/4）は取り込まず、
+       受け取り済みのPARTと総数も変えない。計画（partSetPlan）には採用したPARTだけを渡す。除く前に計画を立てると、
+       迷い込んだ「5/4」が総数の変更と見なされ、受け取り済みのPARTが全部落ちる */
+    var outOfRange = [];
+    var accepted = res.parts.filter(function (p) {
+      if (p.k > res.maxN || p.k < 1) { outOfRange.push(p.k); return false; }
+      return true;
+    });
+    var plan = accepted.length ? RR.partSetPlan(partStore, { parts: accepted, maxN: res.maxN }) : null;
+    if (plan) applyPlan(plan, notices);
+    if (outOfRange.length) notices.push("PART " + outOfRange.join("、") + " は総数（全" + res.maxN + "個）の範囲外なので取り込みませんでした。番号を確認して、正しいPARTを貼ってください");
     /* 2026-10-15(独立レビュー): 1回の貼り付けに同じPARTが複数入っていても「1回の到着」として数える
        （AIの1回の返信を2回と数えて、再出力していないのに2回目の案内へ進めない）。回数は貼り付け前の値から+1 */
     var truncBefore = {};
-    res.parts.forEach(function (p) {
+    accepted.forEach(function (p) {
       var pe = partStore.parts[p.k];
       if (!(p.k in truncBefore)) truncBefore[p.k] = (pe && typeof pe.trunc === "number" && isFinite(pe.trunc) && pe.trunc >= 1) ? Math.floor(pe.trunc) : 0;
     });
-    res.parts.forEach(function (p) {
+    accepted.forEach(function (p) {
       var prevEntry = partStore.parts[p.k];
       if (prevEntry) replaced.push(p.k);
       var entry = { body: p.body, hasEnd: p.hasEnd, endedByNextMarker: p.endedByNextMarker, at: Date.now() };
@@ -1173,7 +1192,7 @@ footer.site-footer a { color: var(--color-mute); }
     var st = RR.partStatus(partStore);
     /* 何を取り込んだかを最初に言う。貼り付け欄は自動で空にするので、
        「取り込まれたのか」「もう一度貼るべきか」で迷わせない */
-    var took = res.parts.map(function (p) { return p.k; }).sort(function (a, b) { return a - b; });
+    var took = accepted.map(function (p) { return p.k; }).sort(function (a, b) { return a - b; });
     if (took.length) notices.push("PART " + took.join("、") + " を取り込みました");
     renderPartStatus(st, warnings, replaced, notices);
     if (st.complete) {

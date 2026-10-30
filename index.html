@@ -611,7 +611,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .howto-list { display: flex; flex-direction: column; gap: 0; }
 .howto-item {
   display: grid;
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 84px minmax(0, 1fr);
   gap: 1.5rem;
   padding-block: 1.6rem;
   border-top: 1px solid var(--color-border);
@@ -627,7 +627,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   overflow: hidden;
 }
 .howto-num img { width: 76%; }
-.howto-body h3 { margin: 0 0 0.35rem; }
+.howto-body h3 { margin: 0; word-break: auto-phrase; overflow-wrap: anywhere; }
 .howto-body p { color: var(--color-mute); }
 .howto-body .howto-meta { display: block; margin-top: 0.4rem; font-size: var(--fs-small); color: var(--color-sub-text); font-weight: 700; }
 .copy-choice { display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center; }
@@ -642,7 +642,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-choice-item { flex: none; width: 100%; }
 .howto-body .howto-note { margin-top: 0.55rem; font-size: var(--fs-small); line-height: 1.75; color: var(--color-text); background: var(--color-bg); border-left: 3px solid var(--color-sub); padding: 0.6rem 0.8rem; border-radius: 0 6px 6px 0; }
 @media (max-width: 600px) {
-  .howto-item { grid-template-columns: 56px 1fr; gap: 1rem; }
+  .howto-item { grid-template-columns: 56px minmax(0, 1fr); gap: 1rem; }
   .howto-num { width: 52px; height: 52px; }
 }
 
@@ -970,10 +970,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       <div class="hero-copy">
         <span class="eyebrow">無料・登録不要</span>
         <h1>エンジニアのための<br><span class="hero-highlight">ベンチマーク調査</span>ツール</h1>
-        <p class="hero-sub">
-          Deep Researchの回答を、出典と突き合わせて検査したレポートへ。技術動向から競合調査まで。
-        </p>
-        <p class="hero-req">必要なもの：長文を貼れるAIチャット（Gemini・Claude・ChatGPT有料プラン等）が1つ。手順書は無料ですが、AIの契約と「しっかり調べる」のDeep Research枠は別に必要です。根拠確認は収集時の抜粋との突き合わせで、原資料を開き直す再確認ではありません。</p>
+        <p class="hero-sub">Deep Researchの回答を、出典と突き合わせて検査したレポートへ。</p>
+
       </div>
 
       <div class="copy-box" id="hero-copy-box">
@@ -988,19 +986,14 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
             <span class="copy-choice-note">作業<br>5分</span>
-            <span class="copy-choice-dr">Deep Research 不要・迷ったらこちら</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
             <span class="copy-choice-note">作業<br>10分</span>
-            <span class="copy-choice-dr">Deep Research 要（3回前後）</span>
           </div>
         </div>
         <p class="copy-fallback" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
         <p class="sr-only" aria-live="polite" id="hero-copy-status"></p>
-        <div class="copy-next" id="hero-copy-next" hidden>
-          <strong>次の一手：</strong>AIチャットを開いて貼り付け、そのまま送信してください。AIがテーマを聞いてきたら一文で答えます。届いたレポートは<a href="viewer.html">ビューア</a>に貼ると検査・PDF保存ができます。
-        </div>
       </div>
     </div>
 
@@ -1154,41 +1147,6 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         </div>
       </div>
       <p class="arf-scroll-hint">← 横にスクロールできます →</p>
-      <p class="arf-scroll-hint">図は「しっかり調べる」の流れです。「手軽に試す」は1つのチャットの中で、同じ考え方の工程を簡略化して進みます。</p>
-    </div>
-  </div>
-</section>
-
-<!-- ===================== Problem ===================== -->
-<section class="section" id="problem">
-  <div class="container">
-    <div class="section-head reveal">
-      <span class="eyebrow">課題</span>
-      <h2>素の Deep Research で起きていること</h2>
-      <p class="lead">AIに調べさせるだけでは、こうしたすれ違いがよく起きます。</p>
-    </div>
-    <div class="problem-grid">
-      <div class="problem-card reveal" style="--i:0">
-        <div class="problem-mascot" aria-hidden="true">
-          <img loading="lazy" src="assets/images/mascot/mascot-confused.webp" alt="">
-        </div>
-        <h3>出典があいまいなまま</h3>
-        <p>どの資料の、どの記述にもとづくのかが分からないまま、結論だけが返ってくる。</p>
-      </div>
-      <div class="problem-card reveal" style="--i:1">
-        <div class="problem-mascot" aria-hidden="true">
-          <img loading="lazy" src="assets/images/mascot/mascot-dizzy.webp" alt="">
-        </div>
-        <h3>一度の検索で終わる</h3>
-        <p>複数の切り口を横断できず、本来確認すべき情報の抜け漏れに気づけない。</p>
-      </div>
-      <div class="problem-card reveal" style="--i:2">
-        <div class="problem-mascot" aria-hidden="true">
-          <img loading="lazy" src="assets/images/mascot/mascot-block.webp" alt="">
-        </div>
-        <h3>調べきれていないのに「ない」と断定</h3>
-        <p>検索で見つからなかっただけの情報が、いつのまにか「存在しない」という言い切りに変わってしまう。</p>
-      </div>
     </div>
   </div>
 </section>
@@ -1197,36 +1155,25 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 <section class="section section-alt" id="how-to">
   <div class="container">
     <div class="section-head reveal">
-      <span class="eyebrow">使い方</span>
       <h2>使い方</h2>
-      <p class="lead">コピーしたあとは、AIチャットとのやり取りだけで進みます。</p>
     </div>
     <div class="howto-list">
       <div class="howto-item">
-        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-clipboard.webp" alt="クリップボードを持つResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-clipboard.webp" alt=""></div>
         <div class="howto-body reveal">
-          <h3>1. コピーして、貼って、送信（共通）</h3>
-          <p>「手軽に試す」か「しっかり調べる」を選んでコピーし、AIチャットに貼り付けて送信するだけ。上の欄にテーマを入れてコピーすると、聞かれずに始まります。空欄なら調べたいテーマを聞かれるので、一文で答えます。</p>
-          <span class="howto-meta">手軽に試す＝作業約5分・Deep Researchなしで完結（任意で使うことも可） ／ しっかり調べる＝作業約10分・Deep Research 3回前後から。狭いテーマは1回、検証追加で最大8回</span>
+          <h3>1. コピーして、AIチャットに貼って送信</h3>
         </div>
       </div>
       <div class="howto-item">
-        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-point.webp" alt="指差しをするResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-point.webp" alt=""></div>
         <div class="howto-body reveal">
-          <h3>2. 手軽に試す：「OK」→太字の言葉を返すだけ</h3>
-          <p>条件を確認したら「OK」と返信します。<strong>同じチャットの中で</strong>調査が実行されます。あとは画面に太字で出る言葉（「次」「レポート」など）をそのまま返すだけで、レポートがコードブロックで届きます。届いた順に<a href="viewer.html">ビューア</a>へ貼れば、その場でPDFに。</p>
+          <h3>2. 「OK」や太字の言葉を、そのまま返す</h3>
         </div>
       </div>
       <div class="howto-item">
-        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-report.webp" alt="レポートを掲げるResearchRoboのロボマスコット"></div>
+        <div class="howto-num"><img loading="lazy" src="assets/images/mascot/mascot-report.webp" alt=""></div>
         <div class="howto-body reveal">
-          <h3>3. しっかり調べる：調査チャットで実行し、結果を戻す</h3>
-          <p><strong>確認する</strong>：目的・対象・本数を確認し「OK」。調査プロンプトが届きます。<br>
-          <strong>開く</strong>：プロンプトを新しいチャットに貼り、Deep Researchで実行。<br>
-          <strong>渡す</strong>：出てきたレポートを丸ごと最初のチャットへそのまま貼ります。<br>
-          <strong>受け取る</strong>：レポートはコードブロックで分けて届きます。届くごとに「次」と返信。<br>
-          <strong>仕上げ</strong>：届いた順に<a href="viewer.html">ビューア</a>へ貼ると結合・検証され、PDFで保存できます。</p>
-          <p class="howto-note">最初のチャットはDeep Researchを使わないので、<a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>やGemini・Claudeなど容量の大きいものを使ってください（調査チャットは容量が小さくてもよく、ChatGPT無料版でも可）。</p>
+          <h3>3. 届いたレポートを<a href="viewer.html">ビューア</a>に貼ってPDFに</h3>
         </div>
       </div>
     </div>
@@ -1237,21 +1184,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 <section class="section" id="report">
   <div class="container report-wrap">
     <div class="reveal">
-      <span class="eyebrow">レポート実例</span>
       <h2>そのまま渡せるレポートに</h2>
-      <div class="stat-row">
-        <div class="stat-chip"><span class="stat-num" data-count="13">0</span><span class="stat-label">調査対象企業（サンプル）</span></div>
-        <div class="stat-chip"><span class="stat-num" data-count="124">0</span><span class="stat-label">公開資料</span></div>
-        <div class="stat-chip"><span class="stat-num" data-count="285">0</span><span class="stat-label">確認事実</span></div>
-      </div>
-      <p class="report-caveat">※ 上の数値は、下のPDF（内容は架空のサンプル）の値です。</p>
-      <ul class="report-list">
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>A4横向き、読みやすい日本語フォントで構成</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>本文・表に論文形式の引用番号を付与</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>参考文献の一覧から原資料へリンク</li>
-      </ul>
-      <a class="btn btn-outline" href="REPORT_STYLE_SYNTHETIC.pdf" target="_blank" rel="noopener">レポート全文をPDFで見る（全47ページ）</a>
-      <p class="report-caveat">※ 下の画像とPDFは、内容が架空のサンプルです（画像は先頭12ページと参考文献一覧の2ページ、全47ページはPDFで）。実際のレポートは、この体裁で出力されます。</p>
+      <a class="btn btn-outline" href="REPORT_STYLE_SYNTHETIC.pdf" target="_blank" rel="noopener">レポート全文をPDFで見る　全47ページ</a>
+      <p class="report-caveat">※ 画像もPDFも、内容が架空のサンプルです。</p>
     </div>
     <div class="report-flip" id="report-flip">
       <div class="rf-stage" id="rf-stage" tabindex="0" role="group" aria-roledescription="ページめくりビューア" aria-label="実例レポートのページめくりビューア。左右の矢印キーでページを移動できます">
@@ -1269,7 +1204,6 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       </div>
       <div class="rf-bar">
         <span class="rf-count" id="rf-count" aria-live="polite">1 / 14</span>
-        <span class="rf-hint">クリックまたは矢印キーでページをめくれます</span>
       </div>
     </div>
   </div>
@@ -1295,84 +1229,48 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 <section class="section section-alt" id="faq">
   <div class="container">
     <div class="section-head reveal">
-      <span class="eyebrow">FAQ</span>
       <h2>よくある質問</h2>
     </div>
     <div>
       <details class="faq-item reveal" style="--i:0">
         <summary>無料ですか</summary>
-        <p>はい。この手順書（プロンプト）は無料で、CC BY 4.0のもとに公開しており、登録もアカウントも不要です。ただし、貼り付けて使うAIチャットは別に必要です。容量の大きいAI（Google AI Studio・Gemini・Claude、または各サービスの有料プラン）を前提にしており、Deep Researchの利用枠は、お使いのAIサービスの条件に従います。</p>
+        <p>手順書は無料で、登録も不要です。AIチャットは別に必要で、容量の大きいAI、たとえばGoogle AI Studio、Gemini、Claude、各サービスの有料プランを使ってください。ChatGPT無料版だけで「しっかり調べる」は通りません。Deep Researchの枠はAIサービス側の条件に従います。</p>
       </details>
       <details class="faq-item reveal" style="--i:1">
         <summary>「手軽に試す」と「しっかり調べる」の違いは</summary>
-        <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません（調査条件の確認で「Deep Researchを使う」に変えると、別チャットで実行するプロンプトが届きます）。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
-        <p><strong>しっかり調べる</strong>は、確認した調査条件から調査対象を重複なく漏れなく分け、既定で通常3本の調査プロンプトを作り、別のチャットのDeep Researchで実行します。狭いテーマは1本にまとめます。分け方とその理由も示します。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります。必要な場合だけ検証用の1本を同じ本数の中に含めます。結果は1本ずつ貼り、AIの「次」を待つ進め方が基本です。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
-        <p>どちらも同じビューアでPDFにでき、出典番号と参考文献リストが付きます。迷ったら「手軽に試す」から始めて、物足りなければ同じテーマで「しっかり調べる」を実行してください。</p>
+        <p><strong>手軽に試す</strong>は、1つのチャットで調査からレポートまで終わります。Deep Researchは使いません。作業約5分。<br><strong>しっかり調べる</strong>は、調査を通常3本に分け、別のチャットのDeep Researchで実行して、結果を最初のチャットに戻します。作業約10分。Deep Researchを3回前後使います。<br>迷ったら「手軽に試す」から始めてください。</p>
       </details>
       <details class="faq-item reveal" style="--i:2">
-        <summary>どのAIチャットで使えますか</summary>
-        <p><strong>手軽に試す</strong>：Web検索ができるAIチャットが1つあれば動きますが、調査結果とレポートを同じチャットに置くため、容量の大きいAI（Google AI Studio・Gemini・Claude、または各サービスの有料プラン）を前提にしてください。容量の小さいチャットでは、資料が多いと途中で手順書が失われ、最後まで到達できないことがあります。</p>
-        <p><strong>しっかり調べる</strong>：チャットの役割が2つあり、必要な条件が違います。</p>
-        <p>❶ <strong>最初のチャット</strong>：全結果を集めてレポートを書くので、容量の大きいAIが向いています。Google AI Studio・Gemini・Claudeのほか、Web接続のない社内AIでも使えます。<br>
-          ❷ <strong>調査チャット</strong>：Deep Researchが必要ですが、容量は小さくて構いません。ChatGPT無料版でも使えます（ただし無料版ではDeep Researchが軽量版に切り替わり、調査の質が落ちることがあります。「Deep Research」の表示と残りの回数を確認してください）。</p>
-        <p>ChatGPT無料版だけで「しっかり調べる」は通りません（フル版の手順書は無料版の容量に収まらず、貼り付けた時点で前半が失われます）。「手軽に試す」も、資料が多い調査では同じ理由で途中で失敗します。どちらもGoogle AI Studio・Gemini・Claudeなど容量の大きいAIをお使いください。</p>
-        <p>Geminiで長文の貼り付けが失敗するときは、手順書のファイルをダウンロードして添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
+        <summary>途中で止まったり、切れたりしたら</summary>
+        <p>「続けて」と一言送ってください。レポートが途中で切れたときは、<a href="viewer.html">ビューア</a>が送る文を表示するので、そのまま最初のチャットへ送り、届いたコードブロックを貼り直します。</p>
       </details>
       <details class="faq-item reveal" style="--i:3">
-        <summary>個別の調査プロンプトを貼ると、指定の形式ではなくレポートや文書になります</summary>
-        <p>これは想定内の動作です（多くのAIのDeep Researchはレポート形式で返すことがあります）。<strong>そのレポートを丸ごと最初のチャットへそのまま貼ってください。</strong>最初のチャットが資料・主張・未確認事項の一覧に変換して取り込みます。レポートに出典URLがほとんど無い場合だけ、最初のチャットが「調査チャットに『一覧』と送ってください」と案内します。あわせて、Deep Research（サービスによっては「リサーチ」等の名称）モードがオンになっているかも確認してください。オフのままだと通常のチャット応答になり、Web調査自体が行われません。</p>
+        <summary>PDFにするには</summary>
+        <p>レポートのコードブロックを<a href="viewer.html">ビューア</a>へ順に貼ると、結合と検査が行われ、「PDFとして保存」ができます。赤い不備が出たら「不備をコピー」を最初のチャットに貼り、出てきたコードブロックをビューアに貼り直します。黄色は残っていても構いません。</p>
       </details>
       <details class="faq-item reveal" style="--i:4">
-        <summary>AIの応答が途中で止まってしまいました</summary>
-        <p>「続けて統合を行います」のような文だけで応答が終わった場合は、「続けて」と一言送ってください。そのまま次の工程へ進みます。レポートが途中で切れた場合は、<a href="viewer.html">ビューア</a>が「PART 2 を出し直して」のように送る文を表示します（PART＝長いレポートを分けた1つ分のコードブロックのことです）。その文をそのまま最初のチャットへ送り、届いたコードブロックをビューアに貼り直してください。</p>
+        <summary>2回目以降は、もっと簡単にできますか</summary>
+        <p>ファイルを登録できる作業スペース付きのAIチャットなら、手順書を一度登録しておくと、次からは短い開始用の文だけで始められます：<button class="btn btn-outline copy-btn copy-btn--short" type="button" style="margin-top:0.5rem;">開始用の文だけコピー</button><span class="sr-only" aria-live="polite" id="faq-copy-status"></span></p>
       </details>
       <details class="faq-item reveal" style="--i:5">
-        <summary>なぜ調査は別のチャットで実行するのですか</summary>
-        <p>多くのAIチャットは、同じ会話の中でDeep Research（リサーチモード）を2回目以降続けて起動できない、または不安定になることが確認されています。そのため調査プロンプトごとに新しいチャットを開いていただく方式にしています。既定では調査対象を分けて通常3本になり、同時に開いて並行実行すると待ち時間を短縮できます。狭いテーマは1本にまとまります。ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選択します（メニューの位置は各社の仕様変更により変わることがあります）。</p>
+        <summary>Deep Researchはどこで選びますか</summary>
+        <p>ChatGPTは入力欄の「＋」または「ツール」から「Deep research」、Geminiはツール一覧の「Deep Research」、Claudeは「リサーチ」から選びます。</p>
       </details>
       <details class="faq-item reveal" style="--i:6">
-        <summary>レポートはどうやってPDFにするのですか</summary>
-        <p>レポートは最初のチャットが複数のコードブロックに分けて返します。<a href="viewer.html">ビューア</a>へ順に貼り付けると自動で結合して整え、機械的に直せる不備（重複した参考文献の統合など）はその場で修復したうえで、残る不備だけを表示します。そのままプレビューと「PDFとして保存」ができます（このビューアは、貼り付けた内容をお使いのブラウザ内だけで処理し、サーバーには送信しません）。AIチャット自体の「ダウンロード」機能ではなく、ビューアの「HTMLをダウンロード」「PDFとして保存」を使ってください。</p>
+        <summary>結果の正確性は保証されますか</summary>
+        <p>収集時に記録した原文の抜粋と、本文・参考文献を突き合わせて検査します。ただし原資料を開き直す再確認ではないため、重要な数値や主張は原資料でもご確認ください。</p>
       </details>
       <details class="faq-item reveal" style="--i:7">
-        <summary>ビューアで不備が出たときのやり直し方は</summary>
-        <p>ビューアの「不備をコピー」を押し、最初のチャットへ貼り付けてください。たいていは該当のコードブロックだけが修正されて出てくるので、<strong>それをビューアの貼り付け欄にそのまま貼ります</strong>。「クリア」は、ビューアが案内したとき以外は押さなくて構いません。同じ番号のコードブロックは自動で置き換わります。レポートのファイルを添付し直す必要もありません（最初のチャットが調査記録を保持しているので、その部分だけ出し直すのが最短で、ファイルのやりとりは文字化けの原因にもなります）。赤い項目が消えれば完成です。<strong>黄色（参考）は残っていても構いません</strong>——そのままPDFにできます。赤が残っても、出し直しを1回行ったあとは、ビューアの案内どおり保存して構いません。</p>
+        <summary>内容を改変して配布してもいいですか</summary>
+        <p>手順書とサイトの文章・画像はCC BY 4.0で、クレジット表記をすれば改変・再配布できます。ビューアなどのソースコードはMITライセンスです。引用した資料の内容は、それぞれの利用条件に従ってください。</p>
       </details>
       <details class="faq-item reveal" style="--i:8">
-        <summary>ベンチマーク調査以外にも使えますか</summary>
-        <p>使えます。Research KITは調査工程そのものを定義した汎用のキットなので、競合製品の比較、技術動向、規制・標準の調査など、テーマを書けばそのまま動きます。複数対象を横断して事実を突き合わせるベンチマーク型の調査で、特に力を発揮します。</p>
+        <summary>入力した内容はどこへ送られますか</summary>
+        <p>手順書・調査テーマ・レポートは、あなたが選んだAIチャットのサービスに送られます。社内情報や個人情報は、勤務先が許可したAIサービスでだけ扱ってください。<a href="viewer.html">ビューア</a>は、貼り付けた内容をブラウザの中だけで処理し、サーバーには送りません。</p>
       </details>
       <details class="faq-item reveal" style="--i:9">
-        <summary>どれくらい時間がかかりますか</summary>
-        <p>手を動かす作業は「手軽に試す」約5分・「しっかり調べる」約10分です。「手軽に試す」はDeep Researchを使わないため、これで完了します。「しっかり調べる」はこれとは別にDeep Researchの調査待ちが加わります。AIが自動で進める時間で、通常3回前後です。狭いテーマでは1回、検証用の調査が必要な場合はその分も含みます。対象や環境、Deep Research側の混雑状況によっても前後します。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:10">
-        <summary>Deep Researchの利用回数は消費しますか</summary>
-        <p>はい。ResearchRobo自体はプロンプトであり、Deep Research機能の実行回数や利用枠は、使用しているAIサービス側の制限にそのまま従います。「手軽に試す」は「Deep Research：使わない」のままなら消費しません。「しっかり調べる」は既定で3回前後消費します。狭いテーマは1回、検証の自動追加で最大8回になることがあります。無料プランは実行枠が少なく、1回の調査で足りなくなることがあります。その場合は、枠が回復してから残りのチャットを実行し、結果が出そろい次第まとめて貼り戻せば問題なく続けられます。結果が長くて分割出力になり「次」を送ったり、同じチャットに「追加抽出」を送ったりしても、それは同じチャット内の追加メッセージなので、Deep Researchの実行回数を追加で消費しません。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:11">
-        <summary>2回目以降の調査はもっと簡単にできますか</summary>
-        <p>できます。ファイルや指示を保持できる作業スペース機能があるAIチャットなら、手順書のファイルを一度登録しておくと、2回目以降は毎回貼り付ける必要がなくなり、調査テーマを伝えるだけで始められます。任意の使い方で、必須ではありません。登録済みの場所で新しい調査を始めるときは、手順書の本文を含まない短い開始用の文だけをコピーして送れます：<button class="btn btn-outline copy-btn copy-btn--short" type="button" style="margin-top:0.5rem;">開始用の文だけコピー</button><span class="sr-only" aria-live="polite" id="faq-copy-status"></span></p>
-      </details>
-      <details class="faq-item reveal" style="--i:12">
-        <summary>内容を改変して配布してもいいですか</summary>
-        <p>手順書とサイトの文章・画像はCC BY 4.0のもとで、クレジット表記をすれば改変・再配布ができます。表記に必要な情報（著作者名・ライセンス・出典URL）は、手順書の冒頭のLicense行にまとめてあります。ビューアなどのソースコードはMITライセンスです（社内ツールへの組み込みも可能）。ただし、これは手順書・サイト・コードに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:13">
-        <summary>結果の正確性は保証されますか</summary>
-        <p>収集時に記録した原文の抜粋と、本文・参考文献を突き合わせて検査する工程を組み込んでいます。ただし原資料そのものを開き直して再確認するわけではないため、重要な数値や主張は、原資料でご自身でも確認してください。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:14">
-        <summary>調査ワークベンチは何に使いますか</summary>
-        <p>標準の手順では使いません（任意の上級者向けツールです：<a href="dispatch.html">調査ワークベンチを開く</a>）。調査プロンプトを並べて実行状況を管理したり、結果の件数を貼る前に確認したりする用途に使えます。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:15">
         <summary>このサイトはアクセス解析をしていますか</summary>
-        <p>この紹介ページだけ、訪問状況の把握のためGoogle Analyticsを使っています（コピーボタンを押した回数など、ボタン操作の計測を含みます。コピーした内容は送りません。また、この紹介ページは表示のためにGoogle Fontsを読み込みます）。調査プロンプトのコピー内容や、<a href="viewer.html">ビューア</a>などの作業ページに貼り付けた調査テーマ・レポートの中身は対象外で、それらのページにはこの計測を入れていません（ブラウザ内だけで処理されます）。</p>
-      </details>
-      <details class="faq-item reveal" style="--i:16">
-        <summary>入力した内容はどこへ送られますか</summary>
-        <p>手順書・調査テーマ・AIが返したレポートは、あなたが選んだAIチャットのサービス（外部）に送られます。社内情報や個人情報は、勤務先が使用を許可しているAIサービスでだけ扱ってください。AI側のデータの保存や学習への利用は、各サービスの設定と規約によります。一方、このサイトの<a href="viewer.html">ビューア</a>と調査ワークベンチは、貼り付けた内容をお使いのブラウザの中だけで処理し、サーバーには送りません（調査ワークベンチは、プロンプトの一覧と状態だけをお使いのブラウザに保存します）。</p>
+        <p>この紹介ページだけ、Google Analyticsでボタン操作の回数を計測しています。コピーした内容は送りません。表示のためGoogle Fontsも読み込みます。ビューアなどの作業ページには計測を入れていません。</p>
       </details>
     </div>
   </div>
@@ -1385,18 +1283,15 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   <div class="container">
     <div class="reveal">
       <h2>今すぐ試す</h2>
-      <p class="lead-light">コピーして貼るだけで始められます。</p>
       <div class="copy-box">
         <div class="copy-choice">
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
             <span class="copy-choice-note">作業<br>5分</span>
-            <span class="copy-choice-dr">Deep Research 不要・迷ったらこちら</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
             <span class="copy-choice-note">作業<br>10分</span>
-            <span class="copy-choice-dr">Deep Research 要（3回前後）</span>
           </div>
         </div>
         <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>

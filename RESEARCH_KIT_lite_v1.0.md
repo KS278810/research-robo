@@ -55,6 +55,19 @@ KIT読み込み直後、まだ調査テーマが分からない場合に使う�
 
 ---
 
+**返信語の一覧（停止点ごと。迷ったらこの表）**
+
+| 停止点 | ユーザーの返信 | 意味 |
+|---|---|---|
+| SCRIPT 0 | 調査テーマを1文（他のAIのレポートでも可） | 調査条件の確認へ |
+| SCRIPT A | 「OK」／修正指示／「Deep Researchを使う」／「小容量モード」 | 確定して調査へ。「小容量モード」は出力を短く分ける |
+| 調査プロンプトを渡した後 | 調査チャットのレポートを貼る（分けて貼るなら最後に「以上」） | 行形式へ変換して受領 |
+| 根拠確認の後 | 「レポート」／「次」 | PART 1を出す |
+| SCRIPT L | 「次」（「OK」「続き」「はい」も同じ） | 次のPARTを出す |
+| 途中切れ | 「PART k を出し直して」／それでも切れたら「小容量モード」 | 丸ごと再出力／以後を短く分ける |
+
+調査日・調査実行日は、貼り付け文の冒頭にある「今日の日付」を使う。無ければ推測せず、SCRIPT Aの確認項目の末尾に「調査日：{今日の日付}」を添えて確認する。
+
 # 4. 会話スクリプト
 
 ## SCRIPT A: テーマ受領後（1つだけ確認し、ここで止まる）
@@ -282,7 +295,7 @@ SCRIPT Vで除外・保留となった主張のIDは、PLAN・本文の引用・
 
 **引用の書式**: `<sup>`や`<a>`は書かず、**短い記法** `[[{資料ID}|{Claim ID}]]` を本文に直接置く（ビューアが展開する）。例: `…と公表した[[7|C-12]]。`。1文3件まで（4件以上は表の出典列）。複数資料が同じ主張を支える場合は`;`で並べる: `[[3|C-12;7|C-12]]`。付録内に引用を置かない。
 
-**許可要素**: `html head meta title script（application/ld+jsonのみ） body section div h1 h2 h3 p ul ol li table thead tbody tr th td strong a figure svg figcaption span`。**本文の引用と参考文献は短い記法で書き、`sup`と引用用の`a`は自分では書かない**（`a`を書いてよいのは目次と付録Aだけ）。**許可属性**: `id class href data-claim data-source-type data-entity target rel colspan`（`svg`内部の描画属性は可）。**禁止**: `style` `link` `img` `iframe` `object` `embed`、JSON-LD以外の`script`、インラインstyle属性と`onclick`等のイベント属性、`mailto:`・`tel:`・`javascript:`のhref、バッククォート3個の連続、`{{RR:*}}`以外の`{ }`（例外: JSON-LD内とHTMLコメント内）。外部URLのhrefは参考文献と付録Aの中だけに置く（本文のhrefは`#sec-*`のみ）。
+**許可要素**: `html head meta title script（application/ld+jsonのみ） body section div h1 h2 h3 p ul ol li table thead tbody tr th td strong a figure svg figcaption span`（`th`には`scope="col"`／`scope="row"`を付けてよい。無ければビューアが補う）。**本文の引用と参考文献は短い記法で書き、`sup`と引用用の`a`は自分では書かない**（`a`を書いてよいのは目次と付録Aだけ）。**許可属性**: `id class href data-claim data-source-type data-entity target rel colspan`（`svg`内部の描画属性は可）。**禁止**: `style` `link` `img` `iframe` `object` `embed`、JSON-LD以外の`script`、インラインstyle属性と`onclick`等のイベント属性、`mailto:`・`tel:`・`javascript:`のhref、バッククォート3個の連続、`{{RR:*}}`以外の`{ }`（例外: JSON-LD内とHTMLコメント内）。外部URLのhrefは参考文献と付録Aの中だけに置く（本文のhrefは`#sec-*`のみ）。
 
 **`{{RR:*}}`トークン表**（ビューアがDOMから計算する。**数字は自分で書かない**。表紙の`COVER_STATS`と調査手法章にだけ置く）:
 
@@ -313,7 +326,7 @@ SCRIPT Vで除外・保留となった主張のIDは、PLAN・本文の引用・
 <h2>調査手法・対象範囲</h2>
 <p class="key-message">（調査範囲の1行要約。数字を書かない）</p>
 <p>本調査は{質問数}問の調査質問を、<span data-entity>A社</span>、<span data-entity>B社</span>…の{{RR:TARGET_COUNT}}件について確認した。情報対象期間は{{RR:PERIOD}}、調査実行日は{YYYY-MM-DD}（各資料の閲覧日も同日）。本文で引用した資料は{{RR:SOURCE_COUNT}}件（うち一次資料{{RR:PRIMARY_COUNT}}件、比率{{RR:PRIMARY_RATIO}}）、閲覧のみを含めると{{RR:CONSULTED_COUNT}}件、独立発行元は{{RR:PUBLISHER_COUNT}}、情報源カテゴリは{{RR:SOURCE_CATEGORY_COUNT}}。確認事実{{RR:CLAIM_COUNT}}件を本文{{RR:CITATION_COUNT}}箇所で引用した。探索したが確認できなかった事項は{{RR:UNCONFIRMED_COUNT}}件（付録B）。</p>
-<p>根拠確認は、収集時に記録した原文抜粋との内部整合を確認する方法で行った。原資料そのものは再確認していない。</p>
+<p>（根拠確認の方法。再確認の成功数（RECEIPT注記「再確認 対象n/試行m/成功p」のp）が0なら「根拠確認は、収集時に記録した原文抜粋との内部整合を確認する方法で行った。原資料そのものは再確認していない。」、1以上なら「要注意{recheck_ok}件は原資料を開き直して抜粋と照合し、それ以外は収集時に記録した原文抜粋との内部整合を確認した。」と書く）</p>
 {{RR:COVERAGE_CARD}}
 <p class="note">（公開情報上の主な制約を1〜3文で。一次資料が取得制限等で原文を再確認できなかった場合は「一次資料n件は取得制限のため原文を再確認できなかった」の趣旨を含める）</p>
 <!-- UNCITED: C-7(集約→C-3); C-11(scope外) -->

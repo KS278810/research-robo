@@ -30,7 +30,7 @@ Geminiは長文の貼り付けが不安定な場合があります。その場�
 | [`dispatch.html`](./dispatch.html) | 調査ワークベンチ（任意ツール。標準フローでは不要）。調査プロンプトの実行管理（コピー・状態・経過時間）と、Worker結果の件数事前確認（ブラウザ内完結、送信なし） |
 | [`assets/js/rr-checks.js`](./assets/js/rr-checks.js) | `viewer.html`と`dispatch.html`が共有する純関数モジュール（入力正規化・PART結合・自動修復・参考文献の採番・集計トークン置換・機械検査・禁止語リストなど） |
 | [`assets/js/rr-report-css.js`](./assets/js/rr-report-css.js) | レポート書式CSS（`viewer.html`が読み込み、CSSを含まないv5.2レポートに挿入する） |
-| [`benchmark-report-sample.pdf`](./benchmark-report-sample.pdf) | Research KITで実際に作成した調査レポートの実例（自動車13社の衝突安全ベンチマーク、公開資料122件・確認事実319件）。公開版のため、企業名はA社〜M社に、車名・モデル名・プラットフォーム名は「[model]」にマスキングしています |
+| [`benchmark-report-sample.pdf`](./benchmark-report-sample.pdf) | Research KITで実際に作成した調査レポートの実例（自動車13社の衝突安全ベンチマーク、公開資料122件・確認事実319件）。公開版のため、企業名はA社〜M社に置き換えています。車名・モデル名・プラットフォーム名は、置き換えていない箇所があります |
 | [`REPORT_STYLE_SYNTHETIC.pdf`](./REPORT_STYLE_SYNTHETIC.pdf) | 現行の書式見本（架空データ・47ページ。現行のビューアと同じ経路で生成）。調査情報源として使用しないでください |
 
 ## 入力した内容の行き先
@@ -56,10 +56,14 @@ Pages のいずれでも対応しています。手順・注意点は [`hosting/
 
 ## ライセンス
 
-[CC BY 4.0](./LICENSE)（Creative Commons Attribution 4.0 International）で公開しています。
-クレジット表記（著作権者名・ライセンスへのリンク・変更の有無）を行えば、改変・再配布・商用利用が可能です。これは手順書とこのサイトに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。
+手順書（`RESEARCH_KIT_*.md`）・サイトの文章と画像・見本レポートは [CC BY 4.0](./LICENSE)（Creative Commons Attribution 4.0 International）で公開しています。
+クレジット表記（著作権者名・ライセンスへのリンク・変更の有無）を行えば、改変・再配布・商用利用が可能です。
+
+ソースコード（`assets/js/`・`viewer.html`・`dispatch.html`・`hosting/`、`index.html` 内のスクリプトとスタイル）は [MIT License](./LICENSE-CODE) です。社内ツールへの組み込みや改変は、著作権表示とライセンス文を保持すれば自由に行えます。
+
+これらは手順書・サイト・コードに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。
 
 ## 免責事項
 
 Research KITは出典突き合わせの監査工程を内蔵していますが、最終的な事実確認は利用者ご自身でも行ってください。
-`REPORT_STYLE_SYNTHETIC.pdf` に含まれる企業名・数値・URL・結論はすべて架空のサンプルです。`benchmark-report-sample.pdf` は実際の調査をもとにした実例で、企業名・車名・モデル名・プラットフォーム名はマスキングしています（画像のPDFのため、文字の検索・コピーはできません）。
+`REPORT_STYLE_SYNTHETIC.pdf` に含まれる企業名・数値・URL・結論はすべて架空のサンプルです。`benchmark-report-sample.pdf` は実際の調査をもとにした実例です。企業名は置き換えていますが、車名・モデル名・プラットフォーム名は置き換えていない箇所があります。画像のPDFのため、文字の検索・コピーはできません。

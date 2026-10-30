@@ -109,8 +109,7 @@ bash hosting/check.sh http://<配信ホスト>:<ポート>/
 ```
 主要ファイルの200応答・Content-Type・非公開ファイルの404・KITミラーのバイト一致・ディレクトリURLの404・
 リダイレクト先のホスト:ポートをまとめて確認します。
-（Docker/nginx は 2026-10-14 に `docker compose up -d --build` した実機で全項目OKを確認済み。その際に
-`/assets/` が403になる・301が公開ポートを落とす・`/LICENSE` に nosniff が付かない3点を発見して修正）公開サイトに対しても使えます:
+公開サイトに対しても使えます:
 ```bash
 bash hosting/check.sh https://ks278810.github.io/research-robo/
 ```

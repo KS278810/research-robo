@@ -12,8 +12,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/images/favicon-512.png">
 <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
 
-<!-- 2026-10-14: Webフォントは使わない（Google Fontsへのリクエストをゼロにする。ユーザーのレポート内容を扱う
-     画面なので、外部へIP・参照元が送られる経路を残さない）。書体は端末のフォントに任せる -->
+<!-- Webフォントは使わない（Google Fontsへのリクエストをゼロにする。ユーザーのレポート内容を扱う画面なので、外部へIP・参照元が送られる経路を残さない）。書体は端末のフォントに任せる -->
 
 <style>
 *, *::before, *::after { box-sizing: border-box; }
@@ -92,6 +91,7 @@ textarea.small { min-height: 90px; }
 .wp-elapsed { font-size: 0.75rem; color: var(--color-warn); }
 .wp-yield { font-size: 0.82rem; color: var(--color-main); background: #F1F4F8; border-radius: 6px; padding: 0.35rem 0.6rem; line-height: 1.6; }
 .wp-yield .warn { color: var(--color-warn); font-weight: 700; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .wp-result-list { list-style: none; margin: 0.25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 
 .dr-hint { font-size: 0.8rem; color: var(--color-mute); border-top: 1px dashed var(--color-border); margin-top: 1rem; padding-top: 0.75rem; }
@@ -146,22 +146,23 @@ footer.site-footer a { color: var(--color-mute); }
     <div class="panel" id="panel-1">
       <h2>1. 調査プロンプトの応答を貼り付け</h2>
       <p class="hint">最初のチャットが調査プロンプト（【1/1】…のコードブロック。分割された場合は複数）を返した応答を、先頭から末尾まで丸ごとコピーして貼り付けてください（貼り付けるだけで取り込みます。検証用プロンプトの応答も同じ手順で追加できます）。</p>
-      <textarea id="input-dispatch" placeholder="最初のチャットの応答を丸ごと貼り付け（【1/1】… のコードブロックを含む全文）"></textarea>
+      <label for="input-dispatch" class="visually-hidden">最初のチャットの応答</label>
+      <textarea id="input-dispatch" aria-label="最初のチャットの応答を貼り付け" placeholder="最初のチャットの応答を丸ごと貼り付け（【1/1】… のコードブロックを含む全文）"></textarea>
       <div class="actions">
         <button class="btn btn-primary" id="btn-parse" type="button">プロンプトを取り込む</button>
         <button class="btn btn-outline" id="btn-reset" type="button">この調査の記録を消す</button>
       </div>
-      <p class="empty-hint" id="parse-msg" style="margin-top:0.75rem;"></p>
+      <p class="empty-hint" id="parse-msg" style="margin-top:0.75rem;" aria-live="polite"></p>
       <p class="empty-hint" id="paste-hint" hidden style="margin-top:0.25rem;"></p>
       <p class="empty-hint" id="save-msg" hidden style="margin-top:0.25rem;color:var(--color-warn);"></p>
       <!-- 取り込んだ調査プロンプトが0本のとき（WPカードが無い）でも、ここに貼った内容への
            案内（PARTです／文章形式です／判別できません等）が見えるようにパネル1側に置く -->
-      <ul class="check-list" id="ingest-list"></ul>
+      <ul class="check-list" id="ingest-list" aria-live="polite"></ul>
     </div>
 
     <div class="panel" id="wp-panel" hidden>
       <h2>2. 各プロンプトを実行して、結果を集める</h2>
-      <div class="progress"><span id="progress-label">0 / 0 回収済み</span><div class="progress-bar"><span id="progress-fill"></span></div></div>
+      <div class="progress"><span id="progress-label">0 / 0 回収済み</span><div class="progress-bar" id="progress-bar" role="progressbar" aria-labelledby="progress-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progress-fill"></span></div></div>
       <div class="wp-grid" id="wp-grid"></div>
       <div class="dr-hint">
         <p class="chat-target-row" style="margin:0 0 0.6rem;">
@@ -234,6 +235,12 @@ footer.site-footer a { color: var(--color-mute); }
       }
     }
   }
+  /* 複数タブで開くと最後に保存したタブが勝ち、他方の変更が消えるため、別タブの保存を受けて自分の状態を読み直す */
+  window.addEventListener("storage", function (ev) {
+    if (ev.key !== STORAGE_KEY || typeof renderWps !== "function") return;
+    load();
+    renderWps();
+  });
   function load() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -289,12 +296,14 @@ footer.site-footer a { color: var(--color-mute); }
     document.body.removeChild(ta);
     return ok;
   }
-  function copyText(text, btn, okLabel) {
+  function copyText(text, btn, okLabel, onSuccess, onFail) {
     /* 2回連続で押すと、2回目は「original」として成功ラベルを拾ってしまい、
        ラベルが元に戻らなくなる。初回のラベルだけをボタン自身に覚えさせる */
     if (!btn.dataset.origLabel) btn.dataset.origLabel = btn.textContent;
     var original = btn.dataset.origLabel;
     var finish = function (ok) {
+      if (ok && typeof onSuccess === "function") { try { onSuccess(); } catch (e) { /* 通知の失敗で止めない */ } }
+      if (!ok && typeof onFail === "function") { try { onFail(); } catch (e) { /* 同上 */ } }
       btn.textContent = ok ? (okLabel || "コピーしました") : "コピーできませんでした";
       btn.setAttribute("data-copied", ok ? "true" : "false");
       if (btn._rrRestoreTimer) clearTimeout(btn._rrRestoreTimer);
@@ -399,12 +408,7 @@ footer.site-footer a { color: var(--color-mute); }
       var heads = allHeads(lines.slice(prevEnd, b.start).join("\n"));
       var chunks = b.body.split(RE_WORKER_SPLIT).filter(function (c) { return RE_WORKER.test(c); });
       chunks.forEach(function (c, k) {
-        /* 見出しはフェンス直前にまとまっているのが通常なので、1本だけなら最後の見出し
-           （前置きに別の【k/n】があっても取り違えない）。複数本のときは見出し数と
-           チャンク数が一致する場合だけ順に対応付ける。
-           2026-10-14(監査・B5): 一致しない場合に末尾から詰めて割り当てると、見出しが
-           足りないときは番号重複・見出しが多いときは1つ目が捨てられて番号が1つずれて
-           いた。合わないときは見出しを当てず、担当欄と WP の並び順にフォールバックする */
+        /* 見出しはフェンス直前にまとまっているのが通常なので、1本だけなら最後の見出し（前置きに別の【k/n】があっても取り違えない）。複数本のときは見出し数とチャンク数が一致する場合だけ順に対応付ける。一致しないときは見出しを当てず、担当欄と WP の並び順にフォールバックする（末尾から詰めて割り当てると番号が重複・ずれる） */
         var head = null;
         if (chunks.length === 1) head = heads.length ? heads[heads.length - 1] : null;
         else if (heads.length === chunks.length) head = heads[k];
@@ -450,6 +454,10 @@ footer.site-footer a { color: var(--color-mute); }
     /* 記録にWPがあるのに研究IDが空（旧データ・研究ID未検出）だった場合も、
        別の調査を取り込んだときは置き換える対象に含める */
     if (state.wps.length && rid && state.researchId !== rid) {
+      /* 別の調査を取り込むと既存カード（状態・貼り付けた結果）が置き換わるため、取り込み前に確認する */
+      var ans = true;
+      try { ans = window.confirm("別の調査（" + rid + "）のプロンプトです。現在の " + state.wps.length + " 件の記録を置き換えますか？") !== false; } catch (e) { ans = true; }
+      if (!ans) return;
       state = { researchId: rid, wps: [] };
     }
     state.researchId = rid;
@@ -541,6 +549,8 @@ footer.site-footer a { color: var(--color-mute); }
     var doneCount = state.wps.filter(function (w) { return w.status === "done"; }).length;
     progressLabel.textContent = doneCount + " / " + total + " 回収済み";
     progressFill.style.width = total ? Math.round(doneCount / total * 100) + "%" : "0";
+    var pbar = document.getElementById("progress-bar");
+    if (pbar) pbar.setAttribute("aria-valuenow", String(total ? Math.round(doneCount / total * 100) : 0));
     /* renderWpsはグリッドを毎回作り直すため、.wp-resultへ貼った生テキストを
        事前に退避して作り直した後に戻す。退避しないと、1枚のカードへ貼っただけで
        全カードの入力欄が空に戻ってしまう（他のカードにまだ送信していない
@@ -571,7 +581,7 @@ footer.site-footer a { color: var(--color-mute); }
         '<span class="wp-elapsed">' + esc(elapsedText(wp)) + "</span>" +
         "</div>" +
         (yieldHtml ? '<div class="wp-yield">' + yieldHtml + "</div>" : "") +
-        '<textarea class="small wp-result" data-wp="' + esc(wp.wpId) + '" placeholder="この調査の結果を貼ると件数を事前確認します。最初のチャットへの貼り付けは別に行ってください（任意）"></textarea>' +
+        '<textarea class="small wp-result" data-wp="' + esc(wp.wpId) + '" aria-label="' + esc(wp.wpId) + ' の結果（件数の事前確認用）" placeholder="この調査の結果を貼ると件数を事前確認します。最初のチャットへの貼り付けは別に行ってください（任意）"></textarea>' +
         '<ul class="wp-result-list check-list" data-wp-list="' + esc(wp.wpId) + '"></ul>' +
         '<div class="wp-links">手動で開く：' + chatLinks() + "</div>";
       wpGrid.appendChild(card);
@@ -601,8 +611,7 @@ footer.site-footer a { color: var(--color-mute); }
      Markdownの表（| ... | 区切り＋---|---の区切り行）を貼っても同じ分類に乗る。
      precheckLinesとroutePaste（行形式かどうかの判定）の両方がこれを使う */
   function normLines(text) {
-    /* 行ごとの正規化はrr-checks.jsのnormResultListLineと同一実装（2026-09-03・A2で統合）。
-       別実装のままだと同じ結果一覧をdispatchは受理してもviewerは断片扱いする食い違いが起きる */
+    /* 行ごとの正規化はrr-checks.jsのnormResultListLineと同一実装。別実装だと同じ結果一覧をdispatchは受理してもviewerは断片扱いする食い違いが起きる */
     return normText(text).split("\n").map(RR.normResultListLine).filter(function (l) {
       if (!l) return false;
       if (/^(```|~~~)/.test(l)) return false;
@@ -613,11 +622,7 @@ footer.site-footer a { color: var(--color-mute); }
 
   function precheckLines(text, wpHint) {
     var lines = normLines(text);
-    /* RESULT_COMPLETE/RESULT_PART行も箇条書き・太字(**)で装飾されることがある
-       （routePasteの2026-08-30修正と同じ理由）。normText止まりの生テキストに
-       対して判定すると、装飾された行を「未完結」と誤判定し、
-       wpIdも空のままになってカードが見つからなくなる。routePasteと同じく
-       normLines済みの行に対して判定する */
+    /* RESULT_COMPLETE/RESULT_PART行も箇条書き・太字(**)で装飾されることがある。生テキストに対して判定すると装飾された行を「未完結」と誤判定し、wpIdも空のままになってカードが見つからなくなるため、routePasteと同じく normLines済みの行に対して判定する */
     var norm = lines.join("\n");
     var out = { wpId: wpHint || "", s: 0, c: 0, n: 0, r: 0, v: 0, other: 0, complete: false, part: null, addendum: false, snippets: false, weak: 0, lines: lines.length };
     lines.forEach(function (l) {
@@ -639,8 +644,7 @@ footer.site-footer a { color: var(--color-mute); }
       out.wpId = out.wpId || cleanWpId(cm[1]);
     }
     if (pm) { out.part = { k: parseNum(pm[2]), n: parseNum(pm[3]) }; out.wpId = out.wpId || cleanWpId(pm[1]); }
-    /* 2026-09-03(完成前の最終洗い出し・C4): normLinesが" | "を"|"に詰めるため、\S+だと
-       次の|区切りフィールド（例: WP1|PART）まで貪欲に飲み込んでいた。|で止める */
+    /* normLinesが" | "を"|"に詰めるため、\S+だと次の|区切りフィールド（例: WP1|PART）まで貪欲に飲み込む。|で止める */
     var hm = norm.match(/RR-RESULT[^\n]*WP_ID\s*[:：]\s*([^\s|]+)/);
     if (hm) out.wpId = out.wpId || cleanWpId(hm[1]);
     return out;
@@ -702,13 +706,10 @@ footer.site-footer a { color: var(--color-mute); }
     });
   }
 
-  /* 共有スクリプト（assets/js/rr-checks.js）が読み込めなかった場合（オフライン・
-     ブロック等）は、無反応で終わらせず案内を出す。viewer.htmlのensureRRと同じ考え方
-     （2026-09-04 第4回徹底監査・MEDIUM-9: RRが無いままnormLines→RR.normResultListLineへ
-     進みTypeErrorで無反応になっていた） */
+  /* 共有スクリプト（assets/js/rr-checks.js）が読み込めなかった場合（オフライン・ブロック等）は、無反応で終わらせず案内を出す。viewer.htmlのensureRRと同じ考え方 */
   function ensureRR() {
     if (RR) return true;
-    /* 2026-09-14(Phase4): viewer.htmlと同じくhttp(s)ならこのページ自身のURLを案内する */
+    /* viewer.htmlと同じく、http(s)ならこのページ自身のURLを案内する */
     var selfUrl = /^https?:$/.test(location.protocol)
       ? new URL("dispatch.html", location.href).href
       : "https://ks278810.github.io/research-robo/dispatch.html";
@@ -749,7 +750,19 @@ footer.site-footer a { color: var(--color-mute); }
         (pc.v ? "・検証 " + pc.v + "件" : "") + completeLabel;
       var envWp = pc.wpId ? findWp(pc.wpId) : null;
       if (envWp) { pc.wpId = envWp.wpId; /* カードのdata-wp属性と一致する保存形へ揃える */
-        envWp.precheck = { s: pc.s, c: pc.c, n: pc.n, v: pc.v, complete: pc.complete, addendum: pc.addendum, snippets: pc.snippets, at: Date.now() };
+        /* PART 1/2 と 2/2 を別々に貼ると後の件数だけが残るため、PART単位で覚えて合算する（PARTでない貼り付けは従来どおり置き換え） */
+        var prevPc = (envWp.precheck && typeof envWp.precheck === "object") ? envWp.precheck : {};
+        var partsMap = (pc.part && prevPc.parts && typeof prevPc.parts === "object") ? prevPc.parts : {};
+        var sumPc = { s: pc.s, c: pc.c, n: pc.n, v: pc.v };
+        if (pc.part) {
+          partsMap[String(pc.part.k)] = { s: pc.s, c: pc.c, n: pc.n, v: pc.v };
+          sumPc = { s: 0, c: 0, n: 0, v: 0 };
+          Object.keys(partsMap).forEach(function (pk) {
+            var x = partsMap[pk] || {};
+            sumPc.s += x.s || 0; sumPc.c += x.c || 0; sumPc.n += x.n || 0; sumPc.v += x.v || 0;
+          });
+        }
+        envWp.precheck = { s: sumPc.s, c: sumPc.c, n: sumPc.n, v: sumPc.v, complete: pc.complete, addendum: pc.addendum, snippets: pc.snippets, at: Date.now(), parts: pc.part ? partsMap : undefined };
         if (pc.complete) { envWp.status = "done"; envWp.startedAt = 0; }
         else if (envWp.status === "todo") envWp.status = "running";
         save(); renderWps();
@@ -773,18 +786,9 @@ footer.site-footer a { color: var(--color-mute); }
       return kind;
     }
     if (kind === "prose") {
-      /* 2026-09-03(実走前監査・A-3): フル版はレポート形式での貼り戻しが既定になった
-         （§7.3）。以前の「一覧」誘導は出典URLが少ない場合の補助経路でしかないため、
-         標準の案内をレポートのそのまま貼り付けに変更し、カードもここでdoneにする
-         （従来はRESULT_COMPLETE行が無いprose貼付では進捗が0のまま止まっていた）。
-         2026-09-03(完成前の最終洗い出し・C5): この「これで正常です」はWPカード側の
-         貼り付けだけで出すべき判定で、opts.wpHintが無いパネル1（Envelope貼付欄）から
-         proseと誤判定された場合（Envelopeの記述ドリフト等）にも同じ緑を返していた。
-         wpHintが無いときはEnvelopeが読めなかった旨のwarnに落とす */
+      /* フル版はレポート形式での貼り戻しが既定（§7.3）。「一覧」誘導は出典URLが少ない場合の補助経路でしかないため、標準の案内をレポートのそのまま貼り付けにし、カードもここでdoneにする。この「これで正常です」はWPカード側の貼り付けだけで出すべき判定なので、opts.wpHintが無い（パネル1のEnvelope貼付欄）場合はEnvelopeが読めなかった旨のwarnに落とす */
       if (opts.wpHint) {
-        /* 2026-09-03(バグ再修正・A14): URLを1つ含むだけの短い文章（エラーメッセージ等）
-           でもカードが「完了」になっていた。レポートらしい分量（URL3個以上または
-           400字以上）がある場合だけ状態を進める */
+        /* URLを1つ含むだけの短い文章（エラーメッセージ等）でカードが「完了」にならないよう、レポートらしい分量（URL3個以上または400字以上）がある場合だけ状態を進める */
         var proseText = String(text || "");
         var looksLikeReport = (proseText.match(/https?:\/\//g) || []).length >= 3 || proseText.length >= 400;
         if (looksLikeReport) {
@@ -795,9 +799,7 @@ footer.site-footer a { color: var(--color-mute); }
       } else {
         showIngestResults([{ ok: false, level: "warn", wpId: "", label: "調査プロンプトとして読めませんでした", detail: "調査結果のレポートなら、このページではなく最初のチャットへそのまま貼ってください。最初のチャットの応答（調査プロンプトのEnvelope）を貼る場合は「【1/N】」の見出しとコードブロックを含めて丸ごと貼り付けてください。" }]);
       }
-      /* 2026-09-03(バグ再修正・A14): 実際に貼り付けた入力欄だけを空にする。
-         opts.sourceElを無視してinputDispatchを常に空にすると、WPカードへ貼った
-         ときにパネル1の下書きが無関係に消えていた */
+      /* 実際に貼り付けた入力欄だけを空にする（opts.sourceElを無視して常にinputDispatchを空にすると、WPカードへ貼ったときにパネル1の下書きが無関係に消える） */
       if (opts.sourceEl === inputDispatch) inputDispatch.value = "";
       return kind;
     }
@@ -829,9 +831,13 @@ footer.site-footer a { color: var(--color-mute); }
     if (!wp) return;
     var act = btn.getAttribute("data-act");
     if (act === "copy") {
-      copyText(wp.text, btn, "コピーしました。新しいチャットへ");
+      /* 新しいタブはクリックの同期文脈で開く（Safariはクリップボードの非同期完了後だとポップアップとしてブロックする）。コピー失敗はタブ切替で見えないため、カード下の一覧に残す */
       var url = chatTargetUrl();
       if (url) { try { window.open(url, "_blank", "noopener"); } catch (e) { /* ブロック時は個別リンクから */ } }
+      copyText(wp.text, btn, "コピーしました。新しいチャットへ", null, function () {
+        showIngestResults([{ ok: false, level: "warn", wpId: wp.wpId, label: "プロンプトをコピーできませんでした",
+          detail: "開いたチャットには貼る内容が入っていません。このカードの「コピーして新しいチャットを開く」をもう一度押すか、プロンプト本文を手で選択してコピーしてください。" }]);
+      });
       if (wp.status === "todo") {
         wp.status = "running"; wp.startedAt = Date.now(); save();
         var card = btn.closest(".wp-card");

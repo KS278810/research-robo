@@ -48,6 +48,7 @@ expect "assets/images/logo-mark.svg" 200 "image/svg+xml"
 expect "assets/images/favicon.ico" 200 ""
 expect "benchmark-report-sample.pdf" 200 "application/pdf"
 expect "LICENSE" 200 ""
+expect "LICENSE-CODE" 200 ""
 
 expect "dev/CLAUDE.md" 404
 expect "CLAUDE.md" 404
@@ -97,8 +98,8 @@ else
   fail=$((fail + 1))
 fi
 
-# 2026-10-14(Docker実機検証で発見): nginx が /assets → /assets/ の301を「listenポート(80)」の絶対URLで返し、
-# 公開ポートを変えた運用でホスト:ポートが落ちていた。ディレクトリ名（末尾スラッシュ無し）がリダイレクトされるなら、
+# nginx が /assets → /assets/ の301を「listenポート(80)」の絶対URLで返すと、
+# 公開ポートを変えた運用でホスト:ポートが落ちる。ディレクトリ名（末尾スラッシュ無し）がリダイレクトされるなら、
 # Location が今アクセスしている origin（スキーム://ホスト[:ポート]）から始まるか、相対であることを要求する
 echo
 echo "=== ディレクトリリダイレクトの Location が元のホスト:ポートを保つ ==="

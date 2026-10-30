@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT (see LICENSE-CODE) */
 /* ResearchRobo 共有検査モジュール
    viewer.html と dispatch.html（ワークベンチ）の両方から読む純関数群。
    ブラウザ内だけで動く。外部送信・解析コードは一切含まない。 */
@@ -9,8 +10,7 @@
     "再調査", "事実ベースレポート", "最終版", "改訂版", "Deep Research",
     "ハルシネーション監査済み", "Research KIT"
   ];
-  /* full版のみ（§19.3）。お手軽版にはWorker概念自体が無いため、そのまま適用すると
-     「Health Worker」等の正当な英語で誤検出する（2026-09-03 バグ再修正・A5） */
+  /* full版のみ。お手軽版にはWorker概念が無く、そのまま適用すると「Health Worker」等の正当な英語を誤検出する */
   var BANNED_WORDS_FULL = BANNED_WORDS_COMMON.concat(["WP", "Batch", "Worker", "ready", "review", "excluded", "locked", "withheld"]);
   /* lite版のみ（§5.3「確認済み・保留・除外を見出しにしない」）。本文中の地の文（「保留した」等）
      は正常な日本語なので、見出し（h2/h3）に出た場合だけ検出する */
@@ -51,8 +51,10 @@
   /* 貼り付け内容の正規化: チャットのコードブロックをフェンス（```html … ```）ごと貼った
      場合に外側のフェンスだけを剥がし、ゼロ幅文字を除き、HTMLの前後にある説明文を
      切り落とす。検証・プレビュー・ダウンロードはすべてこの正規化後の文字列を使う。 */
+  var RE_INVISIBLE = /[\u200B-\u200F\u2060\uFEFF\u00AD\u202A-\u202E\u2066-\u2069]/g;
   function normalizeInput(raw) {
-    var s = String(raw || "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+    /* PARTマーカー内に紛れた方向制御文字・不可視文字でマーカーが読めなくなるのを防ぐ */
+    var s = String(raw || "").replace(RE_INVISIBLE, "");
     var stripped = false;
     var trimmedOutside = false;
     var before = s;
@@ -108,12 +110,7 @@
     catch (e) { return null; }
   }
 
-  /* 本文テキストだけを取り出す（script/style/参考文献・付録・免責事項を除く）。禁止語スキャン用。
-     2026-09-03(バグ再修正・A6): textContentは要素境界に区切りを入れないため、
-     「</p><p>Worker が」のように前の要素の末尾がアルファベットで終わると
-     語境界(\b)が消えて誤検出／見逃しが起きる。ブロック要素の境界（</p><p>等）だけに
-     空白を入れる（<strong>禁止</strong>語のような同一段落内の隣接タグは対象外にし、
-     地の文の連結を壊さない） */
+  /* 本文テキストだけを取り出す（script/style/参考文献・付録・免責事項を除く）。禁止語スキャン用。ブロック要素の境界にだけ空白を入れ、前の要素末尾の英字と語境界が消えるのを防ぐ（同一段落内の隣接タグは対象外にし、地の文の連結を壊さない） */
   var RE_BLOCK_TAG = "p|div|li|h[1-6]|section|td|th|dd|dt|blockquote|ul|ol";
   var RE_BLOCK_BOUNDARY = new RegExp("(</(?:" + RE_BLOCK_TAG + ")>)\\s*(<(?:" + RE_BLOCK_TAG + ")\\b)", "gi");
   function bodyTextForScan(html) {
@@ -222,14 +219,7 @@
     else if (missing.length) citeTitle = "本文の引用番号に、対応する参考文献がないものがあります";
     else if (used.size === 0) citeTitle = "本文に引用番号が1つも見つかりません";
     else citeTitle = "参考文献リストに、本文で使われていない資料があります";
-    /* 実走: {{RR:REFERENCES}}のような未知トークンで参考文献セクション自体が
-       欠けたとき、この検査は125件の欠落番号を列挙する赤になった。原因（未知
-       トークン）は検査1が既にPART特定つきで指摘しているため、この検査は
-       その派生（読めない大量列挙）に過ぎない。検査1が未知トークンを検出して
-       いる間はwarnへ落とし、AIには根本原因だけを送る（検査1を直せば消える）。
-       ただし「参考文献セクションが実際に空（defined=0）」のときだけに限る——
-       未知トークンが本文の別の場所に1個あるだけの無関係なケースで、本物の
-       引用↔参考文献の不整合まで黙らせてしまわないように絞る */
+    /* 未知トークンが原因で参考文献が空のときは、派生の大量列挙を警告に落とし、根本原因（検査1）だけをAIに送る。参考文献が実際に空（defined=0）の場合に限り、無関係な本物の不整合まで黙らせない */
     var citeDerivedFromUnknownToken = !!(info && info.tokens && info.tokens.unknown && info.tokens.unknown.length) && defined.size === 0;
     addResult(results, citeOk, "引用番号と参考文献リストが過不足なく対応している", citeDetail,
       citeDerivedFromUnknownToken && !citeOk
@@ -246,15 +236,7 @@
         return /\bWP(?!\.?\d{2}\b)(?:\s?\d{1,2})?\b/.test(textOnly);
       }
       if (/^[A-Za-z ]+$/.test(w)) {
-        /* 2026-09-03(7回目・初実走FB): 英単語として厳密一致すると「peer review」「ready to
-           use」のような正当な英語の地の文まで赤にする（実走で"review"が誤検出された）。
-           Workerだけに適用していた日本語・数字隣接ルールを全ASCII内部語へ揃える。
-           2026-09-04(第4回徹底監査): 後読みアサーション（lookbehind）はSafari 16.4未満（iOS含む）で
-           new RegExp自体がSyntaxErrorになり、viewer全体が無反応になる実害バグだった
-           （"Deep Research"が共通禁止語のため全レポートで踏む）。.test()による存在
-           確認だけなので、ゼロ幅の先読み・後読みを消費型の文字クラスに置き換えても
-           真偽の判定結果は変わらない（同じ語への複数の独立したRegExpなので、消費が
-           他の一致を妨げることもない） */
+        /* 英単語は日本語・数字に隣接する場合だけ内部語として扱う（「peer review」「ready to use」等の正当な英語を誤検出しない）。後読みアサーションは古いSafariで構文エラーになるため使わず、消費型の文字クラスで同じ判定にする */
         var esc = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         return new RegExp(esc + "[^\\x00-\\x7F\\s]|[^\\x00-\\x7F]" + esc + "|\\b" + esc + "\\s?\\d").test(textOnly);
       }
@@ -297,21 +279,14 @@
      KITのテンプレートが付与するdata属性（data-source-type / data-claim /
      meta[name="rr:confirmed-count"]）を使う。付与しない旧テンプレでも壊れないよう、
      属性が無い場合は「対象なし」または情報行にとどめ、badにはしない。 */
-  /* 2026-10-03(/my-audit 2回目・L5): 全角数字をそのまま削ってしまうと、全角で書かれた
-     rr:confirmed-count等の値が読み取れなくなる（「値を読み取れません」の誤検知）。
-     toHalfDigitsで半角化してから非数字を除く */
+  /* 全角数字も読めるよう、半角化してから非数字を除く */
   function digitsOf(s) { return toHalfDigits(s).replace(/[^0-9]/g, ""); }
-  /* 2026-10-14(監査・L6): rr:confirmed-count の件数を読む。digitsOf は全ての数字を連結するため
-     "2026年12件" が 202612 になり、確認済み件数を取り違えて引用率・本文分量の判定が崩れた
-     （「確認済み 202612 件」と表示される。実際に再現）。件数は「件」の直前の整数を優先し、
-     無ければ整数がちょうど1つのときだけそれを採る（複数あって目印が無いときは取り違えるより
-     「読み取れません」にする）。桁区切りの "1,234" は従来どおり 1234 として読む。
-     日付の比較（表紙とmeta）は連結が目的なので digitsOf のまま */
+  /* 件数は「件」の直前の整数を優先して読む（「2026年12件」の連結による取り違えを防ぐ）。目印が無く整数が複数あるときは読み取り不能にする。桁区切りの "1,234" は 1234 として読む。日付の比較は連結が目的なので digitsOf のまま */
   function countOf(s) {
     var t = toHalfDigits(s == null ? "" : s).replace(/，/g, ",").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
     /* 「1 234件」「1.234件」「12.5件」のように数字の直前が「数字+区切り(空白/ピリオド)」だと桁区切りか小数か
        判断できない（digitsOfは 234 や 125 に化けた）。取り違えるより「読み取れません」にする */
-    var mk = t.match(/(\d[.\s])?(\d+)\s*件/); /* 変数名を m にしない（kit_contract のR5ピンが別の変数宣言の最初の出現を探す） */
+    var mk = t.match(/(\d[.\s])?(\d+)\s*件/); /* 変数名を m にしない（別の検査が別の変数宣言の最初の出現を探す） */
     if (mk) return mk[1] ? "" : mk[2];
     var runs = t.match(/\d+/g) || [];
     return runs.length === 1 ? runs[0] : "";
@@ -332,18 +307,28 @@
     return out.join(",");
   }
 
+  /* URLの正規化: 小文字化はスキームとホストだけ、#/ #! で始まるフラグメントは保持（#page= 等の位置指定だけ落とす）、クエリはキー順に並べて比較する */
   function normalizeRefUrl(u) {
-    var s = String(u == null ? "" : u).trim().toLowerCase();
-    s = s.replace(/#.*$/, "");
-    s = s.replace(/^https?:\/\//, "");
-    s = s.replace(/^www\./, "");
-    var qi = s.indexOf("?");
-    if (qi >= 0) {
-      var base = s.slice(0, qi);
-      var kept = s.slice(qi + 1).split("&").filter(function (kv) { return kv && !/^utm_/.test(kv); });
-      s = base + (kept.length ? "?" + kept.join("&") : "");
+    var s = String(u == null ? "" : u).trim();
+    var hash = "";
+    var hi = s.indexOf("#");
+    if (hi >= 0) {
+      var frag = s.slice(hi + 1);
+      s = s.slice(0, hi);
+      if (/^[\/!]/.test(frag)) hash = "#" + frag;
     }
-    return s.replace(/\/+$/, "");
+    s = s.replace(/^https?:\/\//i, "");
+    var slash = s.search(/[\/?]/);
+    var host = (slash >= 0 ? s.slice(0, slash) : s).toLowerCase().replace(/^www\./, "");
+    var rest = slash >= 0 ? s.slice(slash) : "";
+    var qi = rest.indexOf("?");
+    if (qi >= 0) {
+      var base = rest.slice(0, qi).replace(/\/+$/, "");
+      var kept = rest.slice(qi + 1).split("&").filter(function (kv) { return kv && !/^utm_/i.test(kv); });
+      kept.sort();
+      rest = base + (kept.length ? "?" + kept.join("&") : "");
+    }
+    return (host + rest).replace(/\/+$/, "") + hash;
   }
 
   /* 全角数字→半角 */
@@ -368,11 +353,7 @@
 
   function notInAppendix(el) { return !(el && el.closest && el.closest(".appendix")); }
 
-  /* id（apx-a/apx-b）を落として自前の見出しだけで付録を書いた文書でも集計を
-     取りこぼさないためのフォールバック。実走で、付録Bにidが付かず表紙の
-     「未確認事項」が実態と異なる0件と表示された事例があった。h2の先頭一致で
-     見出しテキストから探す（本文中の同名見出しと区別するため section.appendix
-     クラス限定） */
+  /* id（apx-a/apx-b）が無い文書でも付録の集計を取りこぼさないためのフォールバック。h2の先頭一致で探す（本文中の同名見出しと区別するため section.appendix 限定） */
   function appendixByHeading(doc, prefix) {
     var secs = doc.querySelectorAll("section.appendix");
     for (var i = 0; i < secs.length; i++) {
@@ -391,14 +372,10 @@
   function citedClaimSet(doc, rawOut) {
     var set = {};
     if (!doc) return set;
-    /* 2026-09-04(第4回徹底監査・MEDIUM-10): "sup a[data-claim]"限定だと、表のtd内など
-       <sup>で包まれていない裸の引用アンカーが「本文で引用されていない」と誤検出
-       （check 13/17の偽赤）になっていた。renumberRefs等と同じくsup限定をやめ、
-       付録・参考文献・免責の外にあるdata-claim付きアンカー全体を対象にする */
+    /* 引用アンカーは sup の内外を問わず、付録・参考文献・免責の外にある data-claim 付きアンカー全体を対象にする */
     Array.prototype.forEach.call(doc.querySelectorAll("a[data-claim]"), function (a) {
       if (!notInAppendix(a)) return;
-      /* 2026-10-14(監査・B4): 全角の、，；も区切りとして扱う（parsePlanは非英数字を境界に
-         しているため、ここだけ半角限定だと同じ文書内で引用済み判定が食い違う） */
+      /* 全角の、，；も区切りとして扱う（parsePlan と判定を揃える） */
       String(a.getAttribute("data-claim") || "").split(/[\s,、，;；]+/).forEach(function (tok) {
         if (/^C-/.test(tok)) {
           var id = canonId(tok);
@@ -463,19 +440,10 @@
     return out;
   }
 
-  /* 2026-09-02（お手軽+DRのうまみ最大化・付加価値レバー）: 結果一覧（S/C/N/RECEIPT行、
-     KIT §5.2の書式）をviewerへ任意で貼ると、原文抜粋・確認状態を成果物の付録Cへ
-     出せる。DRレポート単体には無い「主張単位の検証可能性」を機械生成する。
-     lite・full共通の行形式（1行1レコード、|区切り）をそのまま読む。フル版で複数WPの
-     結果一覧を貼った場合、末尾の RESULT_COMPLETE: {wp_id} からWP識別子を拾っておく
-     （本文の資料ID解決に使う。full版の集約後ID（C-2-07等）とは別物のため、
-     解決できない場合はそのまま「未確定」として台帳に残すだけで機能は止めない） */
-  /* dispatch.html の normLines と同一実装（2026-09-03 完成前の最終洗い出し・A2で統合。
-     以前は別実装で、箇条書き・番号付き・太字・セル区切りをdispatchだけが剥がしていた
-     ため、同じ結果一覧をdispatchは受理してもviewerは「断片です」と誤判定していた） */
+  /* 結果一覧（S/C/N/RECEIPT行、KIT §5.2の書式）を任意で貼ると、原文抜粋・確認状態を付録Cに出せる。lite・full共通の行形式（1行1レコード、|区切り）を読む。フル版は末尾の RESULT_COMPLETE: {wp_id} からWP識別子を拾う。解決できなくても機能は止めず「未確定」として台帳に残す */
+  /* dispatch.html の normLines と同一実装（受理判定を両画面で揃えるため） */
   function normResultListLine(line) {
-    /* 2026-10-15(wide監査A): ゼロ幅文字（U+200B〜200D・2060・FEFF）・引用記号「> 」・全角英字の行頭を、行を捨てずに読む
-       （PART側は既にゼロ幅を除いている。仕様書§8.3は「> 」を捨てると定めている） */
+    /* ゼロ幅文字・引用記号「> 」・全角英字の行頭を、行を捨てずに読む（仕様書§8.3は「> 」を捨てると定める） */
     var t = String(line == null ? "" : line).replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/｜/g, "|").trim();
     t = t.replace(/^(?:>\s*)+/, "");
     t = toHalfDigits(t);
@@ -493,15 +461,8 @@
     var rawStr = String(raw || "").replace(/﻿/g, "");
     var lines = rawStr.split(/\r?\n/);
     var sources = {}, claims = [], unconfirmed = [], receipt = "", wp = "", part = "";
-    /* 2026-09-03(完成前の最終洗い出し・F5): §7.3の変換結果が60行超で分割されると、
-       途中のブロックは`RESULT_COMPLETE`ではなく先頭行`RR-RESULT | … | WP_ID: WP1 | …`
-       と末尾`RESULT_PART: {wp} k/n`だけを持つ。従来はwpの手がかりがRESULT_COMPLETE
-       行だけだったため、分割ブロックではwp=""のままcanon IDがC-1相当に落ち、
-       付録CのID・資料番号が食い違っていた（実走で確認済みの一覧との不一致と同型）。
-       ヘッダ行から先に読み、RESULT_COMPLETE/RESULT_PARTがあれば後で上書きする */
-    /* 2026-09-03(バグ再修正・A1): ヘッダ検出は正規化前のrawStrに対して行っていたため、
-       太字・箇条書き・表形式（| RR-RESULT | … |）で装飾されるとWP_IDが読めなかった。
-       他の行と同じくnormResultListLine適用後の行に対して読む */
+    /* 分割された結果一覧の途中ブロックはヘッダ行 RR-RESULT | … | WP_ID: … | と末尾 RESULT_PART だけを持つため、ヘッダ行から先に読み、RESULT_COMPLETE/RESULT_PART があれば後で上書きする */
+    /* ヘッダ検出は、装飾（太字・箇条書き・表形式）を外した後の行に対して行う */
     var normAll = lines.map(normResultListLine).join("\n");
     var mHead = normAll.match(/^\s*RR-RESULT\b[^\n]*WP_ID\s*[:：]\s*([A-Za-z0-9_-]+)/mi);
     if (mHead) {
@@ -542,7 +503,7 @@
          WP接頭辞は0詰めしない数字だけ（R|1-7|）なので、ここでもWPを剥がし、
          数字なら0詰めを取り除いて揃える（「WP02」のような表記でも解決できるように） */
       if (mDone) {
-        var wpRaw = mDone[1].replace(/[^0-9A-Za-z]/g, "").replace(/^WP/i, "");  /* 2026-10-16(wide監査A): 引用符つき "WP01" は、先に記号を除いてからWPを剥がす */
+        var wpRaw = mDone[1].replace(/[^0-9A-Za-z]/g, "").replace(/^WP/i, "");  /* 引用符つき "WP01" は、先に記号を除いてからWPを剥がす */
         wp = /^\d+$/.test(wpRaw) ? String(parseInt(wpRaw, 10)) : wpRaw;
         return;
       }
@@ -551,7 +512,7 @@
       if (mPart) {
         var wpPartRaw = mPart[1].replace(/^WP/i, "").replace(/[^0-9A-Za-z]/g, "");
         wp = /^\d+$/.test(wpPartRaw) ? String(parseInt(wpPartRaw, 10)) : wpPartRaw;
-        /* 2026-10-14(監査・B2): 分割途中ブロックの k/n も返す（同一ブロック再貼付の判定に使う） */
+        /* 分割途中ブロックの k/n も返す（同一ブロック再貼付の判定に使う） */
         part = parseInt(toHalfDigits(mPart[2]), 10) + "/" + parseInt(toHalfDigits(mPart[3]), 10);
         return;
       }
@@ -560,23 +521,13 @@
              claimCount: claims.length, sourceCount: Object.keys(sources).length };
   }
 
-  /* 結果一覧のC行（cNum）を本文の主張ID（data-claim）と同じcanon形式に変換する。
-     lite（WP無し）は"C-{cNum}"のまま。full（WP接頭辞つき）は"C-{wp}-{cNum}"にする
-     ——貼り付け時点ではAIはWPローカル番号（C7|S2|…）で書くため、これをしないと
-     フル版の結果一覧は本文のC-2-07等と永遠に一致しない（実走で確認: 全行「一覧のみ」
-     になり、check20が全件を誤って「本文に反映されていない」と警告した） */
+  /* 結果一覧のC行（cNum）を本文の主張ID（data-claim）と同じcanon形式に変換する。lite（WP無し）は "C-{cNum}"、full（WP接頭辞つき）は "C-{wp}-{cNum}"。貼り付け時点ではWPローカル番号で書かれるため、変換しないと本文のC-2-07等と一致しない */
   function ledgerClaimId(block, claim) {
     var wp = (block && block.wp) || "";
     return canonId("C-" + (wp ? wp + "-" : "") + claim.cNum);
   }
 
-  /* 2026-10-14(監査・B2): 結果一覧ブロックの同一性の署名。viewer（蓄積時）と
-     buildLedgerHtml（台帳生成時）が同じ基準で「同じブロックの2回貼り」を弾く。
-     - RECEIPT あり（完結ブロック）: wp|receipt|件数（従来どおり）
-     - RECEIPT なし（RESULT_PART k/n の分割途中、または断片）: wp|part|各C行のcNumと主張文
-       （§8.3の「PART 2以降でC番号が1から再開」は主張文が違うので別物として残る）
-     従来は RECEIPT 無しを「常に別物」として積んでいたため、同じ分割途中ブロックを
-     貼り直すと台帳が倍増し、再開用の末尾英字（C-1-1b）が誤って付いていた */
+  /* 結果一覧ブロックの同一性の署名。viewer（蓄積時）と buildLedgerHtml（台帳生成時）が同じ基準で「同じブロックの2回貼り」を弾く。RECEIPT あり: wp|receipt|件数。RECEIPT なし（分割途中・断片）: wp|part|各C行のcNumと主張文（PART 2以降でC番号が1から再開しても、主張文が違えば別物として残る） */
   function resultBlockSignature(b) {
     if (b.receipt) return "R|" + (b.wp || "") + "|" + b.receipt + "|" + ((b.claims || []).length);
     return "P|" + (b.wp || "") + "|" + (b.part || "") + "|" +
@@ -597,16 +548,7 @@
      doc/htmlは展開・自動修復・再採番まで済んだ最終文書（本文の引用状態・参考文献番号を
      読むため）。refMapはrenumberRefs().map（AIが書いた資料ID→表示上の参考文献番号）。
      blocks は parseResultList() の返り値の配列（複数ブロックの貼付・60行分割に対応） */
-  /* 2026-09-03(完成前の最終洗い出し・C8): オーナーの質問「引用先にエビデンスが乏しいものは
-     検出できるか」への改善レバー。KIT本文の追加無しで、既に収集済みのS行type/date・C行
-     excerptの有無だけから付録Cの各行にA〜Dの等級を機械算出する（新規解析は不要）。
-     本文への印付けは今回入れない（実走後に検討。DECISIONS.md参照）。
-     A＝一次資料(gv/pr/ir/os/ac/pt)かつ抜粋あり
-     B＝一次資料だが抜粋なし、または二次資料(n1)で抜粋あり
-     C＝二次資料(n2/ag)のみで抜粋あり
-     D＝抜粋なしの二次資料、または発行日不明
-     同じ主張を複数資料が支える場合はKIT側でC行そのものを分ける設計（§行動規則4）のため、
-     台帳側でも資料ごとに別行になり、行をまたいだ等級の合成は不要 */
+  /* 収集済みのS行type/date・C行excerptの有無だけから、付録Cの各行にA〜Dの等級を機械算出する。A＝一次資料(gv/pr/ir/os/ac/pt)かつ抜粋あり B＝一次資料だが抜粋なし、または二次資料(n1)で抜粋あり C＝二次資料(n2/ag)のみで抜粋あり D＝抜粋なしの二次資料、または発行日不明。同じ主張を複数資料が支える場合はC行が資料ごとに分かれるため、行をまたぐ等級の合成は不要 */
   function evidenceGrade(src, excerpt) {
     var hasExcerpt = !!(excerpt && String(excerpt).trim());
     if (!src) return "D";
@@ -628,14 +570,10 @@
     parseUncited(html).entries.forEach(function (e) { uncitedReason[e.id] = e.reason || ""; });
     var fullStyleId = /data-claim="[^"]*C-\d+-\d+/.test(html);
     var rows = [];
-    /* 2026-09-03(完成前の最終洗い出し・C1): refMapのキーは本文に書かれた資料IDそのまま
-       （0詰めが揺れうる）。素の突合で見つからない場合だけ、0詰めを剥がした
-       canonId基準でも引けるようにする（既存の完全一致優先は変えない） */
+    /* refMapのキーは本文に書かれた資料IDそのまま（0詰めが揺れうる）。素の突合で見つからない場合だけ、0詰めを剥がしたcanonId基準でも引く（完全一致を優先） */
     var canonRefMap = {};
     if (refMap) { Object.keys(refMap).forEach(function (k) { canonRefMap[canonId(k)] = refMap[k]; }); }
-    /* 2026-09-03(バグ再修正・A4): 60行分割ではS行が最初のブロックにしか無いため、
-       ブロック単位でsourcesを引くと2ブロック目以降は資料が引けず等級が常にDになる。
-       同じwpのブロックを横断してS行をマージしてから引く */
+    /* 60行分割ではS行が最初のブロックにしか無いため、同じwpのブロックを横断してS行をマージしてから引く */
     var sourcesByWp = {};
     blocks.forEach(function (b) {
       var key = b.wp || "";
@@ -644,12 +582,10 @@
         if (!(k in sourcesByWp[key])) sourcesByWp[key][k] = b.sources[k];
       });
     });
-    /* 2026-09-03(バグ再修正・A3): 同じ結果一覧の2回貼りは重複排除するが、§8.3が想定する
-       「PART 2以降でC番号が1から再開する」場合は別ブロック＝別内容なので、捨てずに
-       末尾英字（C-1-1b）で区別する。ブロック単位で先に完全再貼付だけを弾く */
+    /* 同じ結果一覧の2回貼りは重複排除するが、PART 2以降でC番号が1から再開する別ブロックは捨てず、末尾英字（C-1-1b）で区別する。先に完全再貼付だけを弾く */
     var blockSeen = {};
     var survivingBlocks = blocks.filter(function (b) {
-      /* 2026-10-14(監査・B2): RECEIPT 無しの分割途中ブロックも resultBlockSignature で同一判定 */
+      /* RECEIPT 無しの分割途中ブロックも resultBlockSignature で同一判定する */
       var sig = resultBlockSignature(b);
       if (blockSeen[sig]) return false;
       blockSeen[sig] = true;
@@ -668,7 +604,7 @@
         seenBy[canon] = bi;
         var status = "一覧のみ";
         if (cited[canon]) status = "本文で引用";
-        else if (uncitedReason[canon] !== undefined) status = "本文未引用（" + (uncitedReason[canon] || "理由記載") + "）";
+        else if (uncitedReason[canon] !== undefined) status = "本文未引用（" + (uncitedReason[canon] || "理由未記載") + "）";
         /* WPが判っている場合はWP修飾キーを先に引く（裸のsNumが別WPの資料と衝突する
            ことがあるため） */
         var refKey = b.wp ? (b.wp + "-" + c.sNum) : c.sNum;
@@ -676,9 +612,7 @@
           (canonRefMap[canonId(refKey)] || canonRefMap[canonId(c.sNum)]) || "";
         var src = (sourcesByWp[b.wp || ""] || {})[c.sNum];
         var srcLabel = src ? [src.publisher, src.title ? "「" + src.title + "」" : ""].filter(Boolean).join("") : "";
-        /* 表示IDはledgerClaimId()の結果（WP付き）を使う。従来は"C-"+cNumのままだったため、
-           full版でも台帳のID列が本文の C-2-07 と食い違い（一覧のみ判定は正しいのに表示だけ
-           C-7 のまま）実走で混乱を招いた（2026-09-03 監査で発見） */
+        /* 表示IDは ledgerClaimId() の結果（WP付き）を使い、本文の C-2-07 と台帳のID列を揃える */
         var grade = evidenceGrade(src, c.excerpt);
         rows.push({ id: canon, claim: c.claim, sNum: c.sNum, refNum: refNum, srcLabel: srcLabel, excerpt: c.excerpt, status: status, grade: grade });
       });
@@ -700,15 +634,7 @@
     return { html: html2, rowCount: rows.length };
   }
 
-  /* PART 1 の目次直後に置かれる章計画コメントを読む。
-       lite  : <!-- PLAN sec-1: 章題 | C-3,C-7,C-12 -->            （2欄）
-       v5.2  : <!-- PLAN sec-1: 章題 | C-1-01,C-1-03 | 約240字 --> （3欄）
-     両KITとも「確認済み主張の全IDを、どれかの章にちょうど1回ずつ割り当てる」と定めて
-     いるため、このコメントの和集合が「本文に載るはずのID全体」になる。
-     実走で「25件が本文にもUNCITEDにも無い」と件数だけ告げたところ、AIは6PART全部を
-     出し直しても同じ25件を落としたままだった（どのIDか特定できないため）。期待側の
-     ID集合をここから復元し、欠落IDを実名で返せるようにする。
-     返り値: { present, entries:[{sec, ids:[]}], all:{id:true}, count, dup:[] } */
+  /* PART 1 の目次直後に置かれる章計画コメントを読む。 lite : <!-- PLAN sec-1: 章題 | C-3,C-7,C-12 --> （2欄） v5.2 : <!-- PLAN sec-1: 章題 | C-1-01,C-1-03 | 約240字 --> （3欄）。両KITとも確認済み主張の全IDをどれかの章にちょうど1回ずつ割り当てるため、このコメントの和集合が「本文に載るはずのID全体」になる。欠落IDを実名で返せるよう、期待側のID集合をここから復元する。返り値: { present, entries:[{sec, ids:[]}], all:{id:true}, count, dup:[] } */
   function parsePlan(html) {
     var out = { present: false, entries: [], all: {}, count: 0, dup: [], raw: {} };
     /* script/style内の文字列（JSON-LD等）に紛れた偽PLANを拾わない。コメント自体が
@@ -723,12 +649,7 @@
       out.present = true;
       /* digitsOfは全角数字を「削除」してしまう（sec-２ → sec:0）。半角化してから読む */
       var sec = parseInt(toHalfDigits(m[1]), 10);
-      /* 欄は「章題 | ID列 [| 約n字]」。ID列の欄は「C-数字 形式のIDが最も多い欄」を選ぶ。
-         章題に SiC-MOSFET / PoC-検証 / SiC-1200V のような「英字+C-数字」を含む語があると、
-         単純な /C-\d+/ だけでは章題中のそれも1トークンとして拾ってしまい、章題欄がID欄より
-         ID数で勝って幽霊ID（C-1200等）を作ってしまう（2026-10-03、全角数字対応の拡張で
-         SiC-１２００V等にも波及すると判明）。「C-」の直前が英数字・アンダースコアでない
-         （欄の先頭、または空白・カンマ・読点等の区切り文字の直後）場合だけIDとして拾う */
+      /* 欄は「章題 | ID列 [| 約n字]」。ID列は「C-数字 形式のIDが最も多い欄」を選ぶ。「C-」の直前が英数字・アンダースコアでない（欄の先頭、または区切り文字の直後）場合だけIDとして拾い、章題中の SiC-MOSFET / PoC-検証 のような語を幽霊IDにしない */
       var fields = String(m[2]).split("|");
       var best = null;
       fields.forEach(function (f) {
@@ -876,12 +797,7 @@
         if (PRIMARY_TYPES.indexOf((li.getAttribute("data-source-type") || "").trim().toLowerCase()) !== -1) primaryCount++;
       });
       var refOk = refs.length >= 3 && primaryCount >= 1;
-      /* 一次資料0件（種類は付与済み・件数は足りる）は、レポートの出し直しでは直せない
-         ——SCRIPT Lは整形段階で、新しい資料を調査で足す段階ではない。実走で、この赤を
-         AIに送った結果、次のラウンドで二次資料の data-source-type を書き換えて赤を消す
-         （＝記録の改竄）方向へ誘導しかけた。一次資料が無いのは調査の記録であって
-         レポートの不備ではないため、黄色（warn。AIに送らない）で知らせるだけにする。
-         refs<3 は従来どおり赤（参考文献セクションの出し忘れ等、整形段階で直せる欠陥が主因） */
+      /* 一次資料0件（種類は付与済み・件数は足りる）はレポートの出し直しでは直せない（調査の記録の問題）ので、黄色（AIに送らない）で知らせる。AIに送ると二次資料の data-source-type を書き換えて赤を消す方向へ誘導しかねない。refs<3 は整形段階で直せる欠陥が主因なので従来どおり赤 */
       var fewRefs = refs.length < 3;
       addResult(results, refOk, "参考文献が3件以上あり、一次資料が含まれている",
         "参考文献 " + refs.length + " 件・一次資料 " + primaryCount + " 件" +
@@ -959,8 +875,7 @@
         { title: noKey.length ? "冒頭に要点（キーメッセージ）が無い章があります" : "各章の冒頭に要点があります" });
     }
 
-    // 10b〜10e. 読者のための検査（2026-10-16・levers監査「レポートの内容とデザイン」）。KIT が既に定める規則だが検査が無く、
-    //   実走の見本では破られていた（要約10項目・結論文なし・1文に引用6件・根拠確認の方法なし・参考文献に not_stated）。
+    // 10b〜10e. 読者のための検査。KIT が既に定める規則（要約10項目・結論文・1文あたりの引用数・根拠確認の方法・参考文献の not_stated）を機械で確認する。
     //   どれも warn・local（AIに送らない。完成は止めない）。v5.1以上（isV51）の文書だけで出す。ライトも isV51 が真（凍結フィクスチャ v4・無印は不変）
     if (v51) {
       var exec = doc.querySelector(".exec-summary");
@@ -1092,10 +1007,7 @@
           return okCov ? "調査で確認した事実が本文に反映されています"
                        : "調査で確認した事実の一部が本文に反映されていません（" + claimCount + "/" + total + "件）";
         };
-        /* UNCITEDの上限は確認済み件数の5%（KIT §5.2）。上限を超える、または引用率が
-           半分を割る場合、「UNCITED行に理由を足す」は規則上そもそも許されない解決である。
-           実走ではAIがこの一文を根拠に32件を理由付きUNCITEDへ退避したため、
-           remedyをgapの大きさで切り替え、必ず「本文へ組み込む」を先頭に置く */
+        /* UNCITEDの上限は確認済み件数の5%（KIT §5.2）。上限を超える、または引用率が半分を割る場合、「UNCITED行に理由を足す」は規則上許されない解決なので、remedyをgapの大きさで切り替え、必ず「本文へ組み込む」を先頭に置く */
         var uncCap = Math.max(1, Math.floor(total * 0.05));
         if (!unc.present) {
           addResult(results, ratio >= 0.8, "確認済み事実のうち8割以上が本文で引用されている",
@@ -1208,13 +1120,9 @@
       var t = raw.trim();
       if (!t) { depth += tagDepthDelta(raw); continue; }
       if (/^```/.test(t)) return lines.slice(0, i).join("\n");
-      /* 2026-09-03(完成前の最終洗い出し・C2): R|で始まる参考文献行は日本語のタイトルを
-         含むため、RE_JP_TEXT_LINEに引っかかって「地の文」と誤判定され、RR-ENDが無い
-         参考文献のみのPARTがまるごと切り落とされていた。R|行はここでは無視する */
+      /* R|で始まる参考文献行は日本語タイトルを含み「地の文」と誤判定されるため、ここでは無視する（RR-ENDが無い参考文献のみのPARTを切り落とさない） */
       if (/^[ \t　]*R\|/.test(t)) { depth += tagDepthDelta(raw); continue; }
-      /* 2026-09-04(第4回徹底監査・HIGH-2): 折り返された段落（<p>本文が\n続きの行</p>）の
-         2行目のように、未閉じの要素の内側にある行は「地の文」ではなく本文の続きなので
-         切り落とさない。depth===0（要素の外側）のときだけチャットの説明文と判定する */
+      /* 折り返された段落の2行目のように、未閉じの要素の内側にある行は本文の続きなので切り落とさない。depth===0（要素の外側）のときだけチャットの説明文と判定する */
       if (depth === 0 && t.charAt(0) !== "<" && RE_JP_TEXT_LINE.test(t)) return lines.slice(0, i).join("\n");
       depth += tagDepthDelta(raw);
     }
@@ -1223,14 +1131,10 @@
 
   /* 貼り付け内容から <!-- RR-PART k/n --> … <!-- RR-END k/n --> の区間を切り出す。
      マーカーが無ければ legacy（従来の完成HTML経路） */
-  /* KITの本文PART上限は6（がっつりは8）。ただし2026-09-02からフル版は末尾（調査手法・
-     参考文献・付録・免責）の分割PARTをこの上限に含めない設計になり、参考文献が
-     多い調査では本文8＋末尾4〜5で13を超えうる。ここでの上限はAIの誤記（マーカーの
-     桁を打ち間違える等）による異常な巨大nを弾くための安全弁なので、その設計変更後の
-     現実的な最大値に余裕を持たせて16とする */
+  /* KITの本文PART上限は6（がっつりは8）。末尾（調査手法・参考文献・付録・免責）の分割PARTは上限に含めないため、実際の最大値に余裕を持たせて16とする。AIの誤記（マーカーの桁の打ち間違い等）による異常に大きなnを弾く安全弁 */
   var MAX_PARTS = 16;
   function parseParts(raw) {
-    var s = String(raw || "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+    var s = String(raw || "").replace(RE_INVISIBLE, "");
     s = canonMarkers(s);
     var markers = [];
     var re = /<!-- RR-PART (\d+)\/(\d+) -->/g, m;
@@ -1249,10 +1153,7 @@
     markers.forEach(function (mk, i) {
       var limit = i + 1 < markers.length ? markers[i + 1].start : s.length;
       var segment = s.slice(mk.end, limit);
-      /* 2026-09-04(第4回徹底監査・HIGH-5): 番号が一致する<!-- RR-END k/n -->だけを探すと、
-         AIがEND側の番号を打ち間違えた（例: PART 1の終端をRR-END 2/2と書いた）だけで
-         本文が完結しているのに永久にtruncated（途中で切れています）と誤判定していた。
-         セグメント内の任意のRR-ENDマーカーで終端とみなし、番号不一致はwarningに出す */
+      /* 番号が一致する RR-END だけを探すと、END側の番号の打ち間違いだけで完結したPARTが永久に途中切れ扱いになる。セグメント内の任意のRR-ENDを終端とみなし、番号不一致は警告に出す */
       var endRe = /<!-- RR-END (\d+)\/(\d+) -->/;
       var em = endRe.exec(segment);
       var body, hasEnd = false, endedByNextMarker = false;
@@ -1270,8 +1171,7 @@
       parts.push({ k: mk.k, n: mk.n, body: body, hasEnd: hasEnd, endedByNextMarker: endedByNextMarker });
       nSet[mk.n] = (nSet[mk.n] || 0) + 1;
     });
-    /* 2026-10-17(wide監査B1): 総数は最も多く現れた値。同数なら大きい方。迷い込んだ「5/4」が他のPARTと
-       一緒に届いても、総数4に引きずられて受け取り済みのPARTが落ちない */
+    /* 総数は最も多く現れた値、同数なら大きい方（迷い込んだ「5/4」で受け取り済みのPARTが落ちないように） */
     var ns = Object.keys(nSet);
     ns.forEach(function (key) {
       var kn = parseInt(key, 10);
@@ -1286,7 +1186,8 @@
      soft-END（RR-ENDが無いまま本文が続いていた）は「次のPARTマーカーへ続き、かつ
      本文の末尾が閉じタグ（</section>|</div>|</html>）で終わっている」場合のみ受理する。
      閉じタグで終わっていなければ、次マーカーが続いていても truncated（途中で切れている） */
-  var RE_CLOSED_TAG_END = /<\/(?:section|div|html)>\s*$/i;
+  /* </p> や </li> で終わる完結したPARTを途中切れと判定しないよう、ブロック要素の閉じタグ全般を受理する */
+  var RE_CLOSED_TAG_END = /<\/(?:section|div|html|p|li|tr|h2|h3|table|ul|ol|figure|blockquote)>\s*$/i;
   /* PARTが「途中で切れている」か（partStatus と、取り込み時の繰り返し回数の計数が同じ判定を使う）。
      RR-END が有る／次マーカーが続き本文が閉じタグで終わる／最終PARTが </html> で終わる、のどれでもなければ途中切れ */
   function isPartTruncated(p, k, n) {
@@ -1296,21 +1197,10 @@
     var softOk = p.endedByNextMarker && RE_CLOSED_TAG_END.test(trimmedBody);
     return !(softOk || lastOk);
   }
-  /* 2026-10-15: 同じPARTが繰り返し途中で切れるとき（出力上限の小さい無料枠で起きる）、毎回同じ
-     「出し直して」を案内すると、AIが同じ長さで再出力し同じ位置で切れる往復が無限に続く。
-     p.trunc（同じkが連続して途中切れで届いた回数。取り込み時に数える）に応じて案内を変える:
-       1回目: 従来どおり出し直し → 2回目: 2つに分けて出し直す（総数+1・1PARTの字数の目安つき）→
-       3回目以降: 容量の大きいAIへの切り替えを勧める。分割は章の境界でしかできないため、1章が単独で
-       上限を超える場合は梯子では解けない（3回目の案内がその出口）。届いた文字数 X の7割を千の位で切り下げた値
-       （最小2,000字）を目安Yとして示す */
-  /* 2026-10-15(wide監査B1): 分割（総数の増加）に従った後の新しいPARTがまた切れたとき、カウンタが1回目に戻って
-     分割を総数16まで繰り返し勧め続けていた（実行再現）。取り込み側（viewer.html）が、分割後に切れて届いたPARTは
-     分割を1回試したものとして3回目から数える。分割の上限（SPLIT_CAP: KITの「分割+検証 8」）に達したら、
-     実行できない「総数を1つ増やして」を案内しない */
+  /* 同じPARTが繰り返し途中で切れるとき、毎回同じ「出し直して」を案内するとAIが同じ位置で切れる往復が続く。p.trunc（同じkが連続して途中切れで届いた回数）に応じて案内を変える: 1回目: 出し直し → 2回目: 2つに分けて出し直す（総数+1・1PARTの字数の目安つき）→ 3回目以降: 容量の大きいAIへの切り替え。分割は章の境界でしかできず、1章が単独で上限を超える場合は3回目の案内が出口になる。届いた文字数 X の7割を千の位で切り下げた値（最小2,000字）を目安Yとして示す */
+  /* 分割に従った後の新しいPARTがまた切れたときは、分割を1回試したものとして3回目から数える（分割を総数16まで勧め続けない）。分割の上限（SPLIT_CAP: KITの「分割+検証 8」）に達したら、実行できない「総数を1つ増やして」を案内しない */
   var SPLIT_CAP = MAX_PARTS;
-  /* 2026-10-15(出力上限の学習): 途中で切れた位置までの文字数 X は、そのチャットの1回の出力上限にほぼ相当する。
-     X が MIN_CAP_X 以上なら、1回目の切れから分割を案内し、Y（Xの7割）を学習して以降のPARTにも使う
-     （同じ長さの「出し直して」は1往復を無駄にする）。X が小さい切れは貼り損ねの可能性があり、学習しない */
+  /* 途中で切れた位置までの文字数 X は、そのチャットの1回の出力上限にほぼ相当する。X が MIN_CAP_X 以上なら、1回目の切れから分割を案内し、Y（Xの7割）を学習して以降のPARTにも使う。X が小さい切れは貼り損ねの可能性があるため学習しない */
   var MIN_CAP_X = 2000, MIN_CAP_Y = 1500;
   function capOf(x) { return Math.max(MIN_CAP_Y, Math.floor(x * 0.7 / 100) * 100); }
   function fmtN(v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
@@ -1351,9 +1241,7 @@
       + bigAi + "。続けるなら"
       + "AIに" + split + "と送り、届いたものを貼り付けてください";
   }
-  /* バナーの見出し（太字・最初に読まれる）用の短い操作文。本文側の truncGuidance と同じ段階。
-     2026-10-15(目視で発見): 見出しが常に「AIチャットに『次』と返信」だったため、途中切れ案内（小さい本文側）と
-     食い違い、ユーザーが見出しに従って「次」を返信すると同じ切れたPARTが繰り返される原因になりうる */
+  /* バナー見出し（最初に読まれる短い操作文）。本文側の truncGuidance と同じ段階にし、見出しと本文の案内が食い違わないようにする */
   function truncHeadline(k, p, n, capY) {
     var rounds = effRounds(p);
     var atCap = (typeof n === "number" && n >= SPLIT_CAP);
@@ -1383,7 +1271,7 @@
     var msgs = [];
     var capYv = (store && typeof store.capY === "number" && isFinite(store.capY) && store.capY >= MIN_CAP_Y) ? Math.floor(store.capY) : 0;
     var inRange = received.filter(function (k) { return k >= 1 && k <= n; });
-    /* 途中切れのPARTは「受け取りました」に含めない（届いたと読めて、途中切れ案内と食い違う。2026-10-15） */
+    /* 途中切れのPARTは「受け取りました」に含めない（途中切れ案内と食い違うため） */
     var okRecv = inRange.filter(function (k) { return truncated.indexOf(k) < 0; });
     if (n > 0 && okRecv.length) msgs.push("PART " + okRecv.join("、") + " を受け取りました（全" + n + "個）");
     if (missing.length) {
@@ -1416,20 +1304,12 @@
 
   function normalizeIdText(s) { return String(s == null ? "" : s).replace(/\s+/g, "").trim(); }
 
-  /* IDの数字区間の先頭ゼロを落として突合用に揃える（C-07≡C-7、C-1-07≡C-1-7、資料 01-07≡1-7）。
-     AIがPARTごとに0詰めを揺らすと、同じ主張が別IDに数えられて件数照合が合わなくなり、
-     参考文献も未解決参照になるため。data-claim属性の値そのものは書き換えない。
-     2026-09-24(viewer第2弾・全角ID正規化): 先に全角数字を半角化してから0詰めを剥がす
-     （toHalfDigitsを通さないと [[１-７|…]] のような全角ID表記が半角と別物として扱われ、
-     資料参照が解決できなくなる） */
+  /* IDの数字区間の先頭ゼロを落として突合用に揃える（C-07≡C-7、C-1-07≡C-1-7、資料 01-07≡1-7）。PARTごとに0詰めが揺れても同じ主張が別IDに数えられないようにする。全角数字は先に半角化する。data-claim属性の値そのものは書き換えない */
   function canonId(id) {
     return toHalfDigits(String(id == null ? "" : id).trim()).replace(/\d+/g, function (d) { return String(parseInt(d, 10)); });
   }
 
-  /* 2026-09-24(viewer第2弾・0詰め保持): canonIdは突合専用で0詰めを剥がすため、AIへの
-     修復指示文にそのままcanon形式を出すと、フル版ID（C-2-07）が C-2-7 に化けて本文の
-     表記と食い違う。rawMap（citedClaimSet()のrawOut・parsePlan().raw等、canon→本文の
-     生表記）が持っていればその表記を、無ければcanon形式のまま返す */
+  /* canonIdは突合専用で0詰めを剥がすため、AIへの修復指示文にcanon形式をそのまま出すとフル版ID（C-2-07）が C-2-7 に化けて本文の表記と食い違う。rawMap（canon→本文の生表記）があればその表記を、無ければcanon形式を返す */
   function keepRawId(id, rawMap) {
     return (rawMap && rawMap[id]) || id;
   }
@@ -1492,12 +1372,7 @@
       return { mode: "newReport", n: pn, id: pid, dropped: droppedAll, unverified: [], prevN: sn, prevTitle: sid.title, kmin: kmin, match: match };
     }
     if (pn > sn) {
-      /* 2026-09-04(第4回徹底監査・MEDIUM-13): kminが旧分割の総数(sn)を超えている場合
-         （例: 旧n=3で{1,2}のみ保持中に「PART 4/5」だけが届く）、k>=kmin以下の
-         フィルタでは旧PARTが1件も対象にならず、別分割のPARTが無言で混在していた。
-         kmin>snは「旧分割の続きとして解釈できない別スキーム」を意味するので、
-         その場合は旧PARTを全て破棄する（kmin<=snのとき＝KIT指示の末尾再分割
-         [例: Case1b] は従来どおりkmin未満を温存する） */
+      /* kminが旧分割の総数(sn)を超えている場合は旧分割の続きと解釈できない別スキームなので、旧PARTを全て破棄する（kmin<=snのときは従来どおりkmin未満を温存する） */
       var dropInc = kmin > sn
         ? Object.keys(filled).map(function (k) { return parseInt(k, 10); })
         : Object.keys(filled).map(function (k) { return parseInt(k, 10); })
@@ -1525,30 +1400,14 @@
      文字コード宣言はダウンロードしたHTMLをfile://で開いたときの文字化け防止に必要で、
      ここしか宣言場所が無いことがある（meta charsetを別途持たない旧テンプレ等） */
   var HEAD_FORBIDDEN_SEL = 'base, link, noscript, template, script:not([type="application/ld+json"]), meta[http-equiv]:not([http-equiv="Content-Type" i])';
-  /* 2026-09-04(第4回徹底監査・HIGH-4): body側の許可外リストがhead側より狭く、
-     meta[http-equiv=refresh]・base・video/audio/source/track・svg image/use・
-     form/input/button/pictureがbody内では素通りしていた（sandboxed previewでも
-     meta refreshの自己ナビゲーションや外部リソース取得が起きる）。R3（autoRepair）と
-     許可外タグ検査の両方がこの定数を共有する。
-     注意: [style]/[onclick]はここに含めない——これはタグ「削除」用の定数であり、
-     styleやonclick属性だけを持つ<p>等は「要素ごと削除」してはいけない（属性だけを
-     外すのが正しい。属性ストリップは別処理が行う）。属性の存在チェックは
-     runChecksの許可外タグ検査側でだけ[style]/[onclick]を追加する */
+  /* body側の許可外タグはhead側と同じ範囲を対象にする（meta refresh・base・video/audio・svg image/use・form 系など。sandboxed previewでも外部取得や自己ナビゲーションが起きうる）。R3（autoRepair）と許可外タグ検査がこの定数を共有する。[style]/[onclick]はここに含めない: これは要素ごと削除する定数であり、属性だけを外すべき要素を消してはいけない（属性の存在チェックは許可外タグ検査側でだけ追加する） */
   var BODY_FORBIDDEN_SEL = 'style, link, img, iframe, object, embed, script:not([type="application/ld+json"]), ' +
     'base, meta[http-equiv]:not([http-equiv="Content-Type" i]), video, audio, source, track, ' +
     'svg image, svg use, form, input, button, picture, noscript, template';
-  /* 2026-10-14(監査・B1-a/B1-d): noscript/template を追加。<noscript>はDOMParser（scripting無効）
-     では子要素として解析されるが、ダウンロードHTMLをブラウザで開く（scripting有効）と
-     中身は生テキスト扱いになり、属性値に書かれた `</noscript><img onerror=…>` が実体化する
-     （mXSS）。<template>の中身は querySelectorAll で辿れず属性ストリップが届かない。
-     どちらもレポートに正当な用途が無いので要素ごと削除する */
+  /* noscript/template を追加: <noscript> は scripting 有効のブラウザで開くと中身が生テキスト扱いになり、属性値内の </noscript><img onerror=…> が実体化する（mXSS）。<template> の中身は querySelectorAll で辿れず属性ストリップが届かない。どちらもレポートに正当な用途が無いので要素ごと削除する */
   /* 危険とみなすURLスキーム。data:はHTML文書を丸ごと埋め込めるため<script>と同等に扱う */
-  var RE_DANGEROUS_SCHEME = /^(mailto:|tel:|javascript:|data:|blob:|vbscript:)/i;
-  /* 2026-10-14(監査・B1-b): WHATWG URLパーサは先頭・末尾のC0制御文字/空白と、内部のタブ・
-     改行を取り除いてからスキームを読むため、`\x01javascript:` や `java\tscript:` は
-     ブラウザでは javascript: として動く。getAttribute() は実体参照（&#x09;）を展開済み
-     なので、制御文字・空白を全て除去してから判定すれば同じ正規化になる。
-     sanitizeForbiddenAndSchemes（解除）と check「許可外リンク」（検出）の両方がこれを使う */
+  var RE_DANGEROUS_SCHEME = /^(mailto:|tel:|javascript:|data:|blob:|vbscript:|file:|intent:)/i;
+  /* WHATWG URLパーサは先頭・末尾のC0制御文字/空白と内部のタブ・改行を取り除いてからスキームを読むため、\x01javascript: や java\tscript: はブラウザでは javascript: として動く。制御文字・空白を全て除去してから判定すれば同じ正規化になる。sanitizeForbiddenAndSchemes（解除）と check「許可外リンク」（検出）の両方が使う */
   function isDangerousHref(h) {
     var s = String(h == null ? "" : h).replace(/[\u0000-\u0020\u007f]/g, "");
     return RE_DANGEROUS_SCHEME.test(s);
@@ -1586,7 +1445,8 @@
        残った要素（meta/title/style/ld+json）にも同じ処理をかける */
     Array.prototype.slice.call(doc.body.querySelectorAll("*")).forEach(function (el) {
       Array.prototype.slice.call(el.attributes).forEach(function (at) {
-        if (at.name === "style" || /^on/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
+        /* ping はリンククリック時に外部へPOSTする。formaction は form 削除後も残る */
+        if (at.name === "style" || /^on/i.test(at.name) || /^(ping|formaction)$/i.test(at.name)) { el.removeAttribute(at.name); out.strippedAttrs++; }
       });
     });
     if (doc.head) {
@@ -1596,14 +1456,8 @@
         });
       });
     }
-    /* R4. 本文中の外部リンクと mailto:/tel:/javascript:/data:/blob:/vbscript: を解除する
-       （表示テキストは残す）。2026-09-04(HIGH-6): data:/blob:/vbscript:を追加
-       （data:はHTML文書ごと埋め込める・blob:はダウンロードHTML内で任意コンテンツを
-       参照しうる・vbscript:は古いIEのみだが用途が無い） */
-    /* 2026-10-14(監査・B1-b/B1-c): 判定を isDangerousHref に統一（制御文字・タブ入りの
-       偽装スキームも解除）。SVG内の <a> は href ではなく xlink:href を使うことがあり、
-       <animate>/<set> は attributeName="href" で後から href を書き込めるため、
-       a[href] 以外も対象にする */
+    /* R4. 本文中の外部リンクと mailto:/tel:/javascript:/data:/blob:/vbscript: を解除する（表示テキストは残す）。data:はHTML文書ごと埋め込める・blob:はダウンロードHTML内で任意コンテンツを参照しうる・vbscript:は古いIEのみだが用途が無い */
+    /* 判定は isDangerousHref に統一する（制御文字・タブ入りの偽装スキームも解除）。SVG内の <a> は xlink:href を使うことがあり、<animate>/<set> は attributeName="href" で後から href を書き込めるため、a[href] 以外も対象にする */
     Array.prototype.filter.call(doc.querySelectorAll("a"), function (a) {
       if (dangerousLinkAttr(a)) return true;
       var h = (a.getAttribute("href") || "").trim();
@@ -1634,10 +1488,7 @@
         if (el.parentNode) el.parentNode.removeChild(el);
       }
     });
-    /* 2026-09-04(第4回徹底監査・MEDIUM-17): 手書きのtarget="_blank"にrel="noopener"が
-       無いと、開いた別タブから window.opener 経由でこのページを操作できてしまう
-       （reverse tabnabbing）。expandCompact生成分は既にnoopenerを付けているが、
-       AIがフルHTML記法で直接書いたリンクは対象外だった */
+    /* 手書きの target="_blank" に rel="noopener" が無いと、開いた別タブから window.opener 経由でこのページを操作できる（reverse tabnabbing）。AIがフルHTML記法で直接書いたリンクも対象にする */
     Array.prototype.slice.call(doc.querySelectorAll('a[target]')).forEach(function (a) {
       var rel = (a.getAttribute("rel") || "").toLowerCase().split(/\s+/);
       var need = ["noopener", "noreferrer"].filter(function (r) { return rel.indexOf(r) === -1; });
@@ -1648,11 +1499,7 @@
     });
   }
 
-  /* legacy文書（v5.1未満・PART無し・{{RR:トークン無し）向けの最小サニタイズ。
-     許可外タグの削除・危険スキームの解除・イベント属性の除去だけを行い、参考文献の
-     統合・付録移動・見出し再採番などv5.1専用の構造前提の処理は行わない
-     （2026-09-04 第4回徹底監査・HIGH-3: legacy文書はautoRepairも許可外タグ検査も
-     一切通らず、<script>・onerror等がそのまま残っていた） */
+  /* legacy文書（v5.1未満・PART無し・{{RR:トークン無し）向けの最小サニタイズ。許可外タグの削除・危険スキームの解除・イベント属性の除去だけを行い、参考文献の統合・付録移動・見出し再採番などv5.1専用の構造前提の処理は行わない */
   function sanitizeOnly(html) {
     var s = String(html || "");
     var out = { html: s, changed: false, merged: [], moved: [], moveSkipped: "", removedTags: [], strippedAttrs: 0, unwrapped: 0, structureMoved: [], dedup: [] };
@@ -1668,10 +1515,17 @@
   }
 
   /* <style> が無ければ </head> の直前にCSSを挿入する（文字列操作。DOM再直列化はしない） */
-  /* head<style>を無条件に信頼しない。@import・背景url(...)・（古いIEの）expression(...)を
-     含む<style>は外部通信や攻撃経路になりうるため、その<style>だけを取り除く
-     （2026-09-04 第4回徹底監査・HIGH-7） */
+  /* head<style>を無条件に信頼しない。@import・背景url(...)・expression(...) を含む<style>は外部通信や攻撃経路になりうるため、その<style>だけを取り除く */
   var RE_DANGEROUS_CSS = /@import|url\s*\(|expression\s*\(/i;
+  /* CSSのエスケープ（\75 rl( ＝ url( 、@\69mport）で上の判定を素通りできるため、判定前にエスケープを解く（表示用ではないので厳密なCSS構文解析は不要） */
+  function cssUnescape(css) {
+    return String(css || "")
+      .replace(/\\([0-9a-fA-F]{1,6})\s?/g, function (all, hex) {
+        var cp = parseInt(hex, 16);
+        return (cp > 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : "";
+      })
+      .replace(/\\(.)/g, "$1");
+  }
   function ensureStyle(html, css) {
     var s = String(html || "");
     var doc = parseDoc(s);
@@ -1679,7 +1533,7 @@
        文書全体を見ていた頃は、body内に<style>があるとCSSを入れずR3がそれを消し、
        完全に無装飾のレポートになっていた */
     var headStyles = (doc && doc.head) ? Array.prototype.slice.call(doc.head.querySelectorAll("style")) : [];
-    var dangerous = headStyles.filter(function (el) { return RE_DANGEROUS_CSS.test(el.textContent || ""); });
+    var dangerous = headStyles.filter(function (el) { return RE_DANGEROUS_CSS.test(cssUnescape(el.textContent || "")); });
     var strippedForeignStyle = false;
     if (dangerous.length) {
       dangerous.forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
@@ -1715,12 +1569,9 @@
      中に生HTMLとして混入しタグごと壊れる（"を閉じてしまう）。
      ※付録A範囲の検出（reApx）は<section>タグ自体を探すため、この版は使わず
      従来のmaskRegionsを使う——両者を混同すると付録Aが二度と見つからなくなる */
-  /* 2026-09-04(第4回徹底監査・MEDIUM-12): 単純な /<[^>]*>/ は引用符内の">"（例:
-     title="a>b"）で止まってしまい、その直後の[[…]]/R|行/{{RR:…}}を「タグの外」と
-     誤判定して展開・置換し、属性値の中に生HTMLが混入してタグごと壊れていた。
-     二重引用符・単一引用符で囲まれた区間は">"を含めて丸ごと1トークンとして
-     読み飛ばす（引用符内の内容そのものは一切解釈しない） */
-  var RE_TAG_ONLY = /<(?:"[^"]*"|'[^']*'|[^"'>])*>/g;
+  /* 単純な /<[^>]*>/ は引用符内の">"（title="a>b"）で止まり、直後の[[…]]/R|行/{{RR:…}}を「タグの外」と誤判定して属性値の中に生HTMLを混入させる。二重・単一引用符で囲まれた区間は">"を含めて丸ごと1トークンとして読み飛ばす */
+  /* 英字で始まる実タグだけを対象にする（本文中の素の「<」（例: 前年比 <3）と後続の引用符が組み合わさって本文をタグの中と誤認するのを防ぐ。「<」が大量にある入力でも O(n²) にならない）。タグの中に「<」は含めない */
+  var RE_TAG_ONLY = /<\/?[A-Za-z](?:"[^"]*"|'[^']*'|[^"'<>])*>/g;
 
   /* script/style/HTMLコメントの中身を同じ長さの改行で埋め、圧縮記法の正規表現が
      JSON-LDやコメント内の [[…]]・R|行を誤って展開しないようにする。改行埋めなのは
@@ -1749,19 +1600,14 @@
     var out = { html: s, cites: 0, refs: 0, changed: false };
 
     s = replaceUnmasked(s, maskRegionsAndTags(s), RE_COMPACT_CITE, function (all, inner) {
-      /* 2026-10-14(監査・B3): 全角の；でも並列引用として分割する（全角数字対応と同系統のAI逸脱。
-         半角のみだと [[1-7|C-1-12；2-3|C-2-01]] が1本のアンカーになり資料2-3とC-2-01が消えていた） */
+      /* 全角の；でも並列引用として分割する（半角のみだと [[1-7|C-1-12；2-3|C-2-01]] が1本のアンカーになり後半が消える） */
       var items = inner.split(/[;；]/);
       var as = [], left = [];
-      /* 2026-09-03(7回目・初実走FB): 同じ資料IDが1つの[[…]]内で繰り返される
-         （例: [[1|C-1;2|C-2;2|C-3]]）と、実走のPDFで"[1][2][2]"のような連続番号に
-         なった。同じridは<a>を増やさず既存アンカーのdata-claimへトークンを連結する */
+      /* 同じ資料IDが1つの[[…]]内で繰り返される（例: [[1|C-1;2|C-2;2|C-3]]）と "[1][2][2]" のような連続番号になるため、同じridは<a>を増やさず既存アンカーのdata-claimへトークンを連結する */
       var byRid = {};
       for (var i = 0; i < items.length; i++) {
         var f = items[i].split("|");
-        /* 2026-09-24(viewer第2弾・全角ID正規化): 形式チェック（半角限定）の前に
-           全角数字だけ半角化する。[[１-７|…]] のような全角ID表記も、AIが手打ちで
-           混ぜた半角/全角混在（[[1-７|…]]）も、正しい資料参照として展開できるように */
+        /* 形式チェック（半角限定）の前に全角数字だけ半角化する（[[１-７|…]] や半角/全角混在も正しい資料参照として展開できるように） */
         var rid = toHalfDigits((f[0] || "").trim());
         var claim = (f.length > 1 ? f[1] : "").trim();
         /* ref-IDらしくなければ展開しない（本文中の [[…]] を誤変換しないため）。
@@ -1818,8 +1664,7 @@
       }
       if (urlStart < 0) return all;
       var url = f.slice(urlStart).join("|").trim();
-      /* 2026-09-24(viewer第2弾・全角ID正規化): [[…]]側と同様、形式チェックの前に
-         全角数字を半角化する */
+      /* [[…]]側と同様、形式チェックの前に全角数字を半角化する */
       var rid = toHalfDigits((f[0] || "").trim());
       if (!/^[0-9A-Za-z][0-9A-Za-z-]*$/.test(rid)) return all;
       rid = canonId(rid);
@@ -1846,14 +1691,7 @@
     var doc = parseDoc(s);
     if (!doc || !doc.body) return out;
 
-    /* R6. 重複した骨格・章の統合（R0より前に実行する。R0は .body-columns が1つである
-       前提で動くため）。実走で、無料版ChatGPTが後のPARTで本文の枠 <div class="body-columns">
-       やスケルトンごと出し直し、結合後に枠が2重になる事例が繰り返し起きた。貼り直しでは
-       直らない（AI自身の出力が重複している）ので、内容を失わない範囲だけ機械で直す。
-         (a) .body-columns が複数 → 2つ目以降の中身を1つ目の末尾へ移し、空の枠を削除する
-         (b) 同一idのsection・8ランドマークが複数で、テキストが完全一致 → 後の方を削除する
-       内容が異なる重複は消さない（改稿版の可能性がある）。それは check 18 が赤で知らせ、
-       viewer側がAI向けの出し直し文を作る */
+    /* R6. 重複した骨格・章の統合（R0より前に実行する。R0は .body-columns が1つである前提で動くため）。AI自身の出力が重複している場合は貼り直しでは直らないので、内容を失わない範囲だけ機械で直す。(a) .body-columns が複数 → 2つ目以降の中身を1つ目の末尾へ移し、空の枠を削除する (b) 同一idのsection・8ランドマークが複数で、テキストが完全一致 → 後の方を削除する。内容が異なる重複は改稿版の可能性があるので消さず、check 18 が赤で知らせる */
     var normText = function (el) { return String((el.textContent || "")).replace(/\s+/g, " ").trim(); };
     var bcAll = Array.prototype.slice.call(doc.querySelectorAll(".body-columns"));
     if (bcAll.length > 1) {
@@ -1947,13 +1785,8 @@
       var li = doc.getElementById("ref-" + m.from);
       if (li && li.parentNode) li.parentNode.removeChild(li);
     });
-    /* 統合の結果、1つの<sup>内に同じ参考文献への引用が並んだ場合は1つに畳む。
-       2026-09-03(7回目・初実走FB): 従来はMERGEが起きた場合だけ実行していたが、
-       実走のPDFで"[1][1]"（隣接する別の<sup>グループが同じ資料IDを引く）が見つかった
-       ため、MERGE有無にかかわらず常時実行し、隣接する<sup>同士の重複も畳む */
-    /* 2026-09-03(バグ修正): 同じ資料への引用でも、担当するClaimが違えば重複ではない
-       （1つの資料を多数のClaimが根拠にするのは正常）。href単独ではなくhref+data-claim
-       の組で同一性を見る（キーはtrim・大文字小文字を区別。data-claim無しは常に個別扱い） */
+    /* 統合の結果、1つの<sup>内に同じ参考文献への引用が並んだ場合は1つに畳む。MERGEの有無にかかわらず常時実行し、隣接する<sup>同士の重複（"[1][1]"）も畳む */
+    /* 同じ資料への引用でも担当するClaimが違えば重複ではない（1つの資料を多数のClaimが根拠にするのは正常）。href単独ではなく href+data-claim の組で同一性を見る（キーはtrim・大文字小文字を区別。data-claim無しは常に個別扱い） */
     function citeDedupeKey(a) {
       var claim = a.getAttribute("data-claim");
       return a.getAttribute("href") + "|" + (claim ? claim.trim() : "");
@@ -2017,9 +1850,7 @@
         apxOl.appendChild(li);
       });
     }
-    /* 2026-09-03(7回目・初実走FB): 閲覧のみ0件の調査では付録Aが空の<ol>のまま残り、
-       見出しだけの白紙ページになる（実走で確認）。KIT §19.2項目8・9と同じ
-       「該当なし」1行を機械側でも補う（AIが省略しても壊れないように） */
+    /* 閲覧のみ0件の調査では付録Aが空の<ol>のまま見出しだけの白紙ページになるため、KIT §19.2項目8・9と同じ「該当なし」1行を機械側でも補う */
     /* moveSkippedがある場合は判定自体を信用していない状態なので、
        apxOlが空でも「該当なし」を書かない（検出失敗を「0件確定」と混同しない） */
     if (apxOl && !out.moveSkipped && !apxOl.querySelector("li")) {
@@ -2031,9 +1862,7 @@
       out.dedup.push("apx-a-none");
     }
 
-    /* R3+R4. 許可外のタグ・危険スキームのリンクを取り除く（v51文書・legacy文書の
-       両方から呼べるよう sanitizeForbiddenAndSchemes() に切り出した。2026-09-04
-       第4回徹底監査・HIGH-3参照） */
+    /* R3+R4. 許可外のタグ・危険スキームのリンクを取り除く（v51文書・legacy文書の両方から呼べるよう sanitizeForbiddenAndSchemes() に切り出してある） */
     sanitizeForbiddenAndSchemes(doc, out);
 
     /* R5. 本文見出しに手打ちされた章番号を外す。組版CSSは .body-columns の h2/h3 に
@@ -2049,14 +1878,29 @@
         if (!first || first.nodeType !== 3) return;
         var t = first.textContent;
         /* 「1.」「1．」「2.3」「第3章」＋区切り。番号だけの見出し（本文が空）は変換しない */
-        var m = t.match(/^[\s\u3000]*(?:第\s*[0-9０-９]{1,3}\s*章|[0-9０-９]{1,2}(?:[.．][0-9０-９]{1,2}){0,3})(?:[.．、,:：)）\]】][\s　 ]+(?=\S)|[.．、,:：)）\]】](?=[^\s　\d０-９])|[\s　 ]+(?=\S))/);
+        var m = t.match(/^[\s\u3000]*(?:第\s*[0-9０-９]{1,3}\s*章|[0-9０-９]{1,2}(?:[.．][0-9０-９]{1,2}){0,3})(?:[.．、,:：)）\]】][\s　 ]+(?=\S)|[.．、,:：)）\]】](?=[^\s　\d０-９]))/);
+        /* 区切りが空白だけの番号は「第N章」「1.1」のように番号と分かる形に限る（「2 社の比較」「10 年間の推移」の数字は内容なので剥がさない） */
+        if (!m) m = t.match(/^[\s\u3000]*(?:第\s*[0-9０-９]{1,3}\s*章|[0-9０-９]{1,2}(?:[.．][0-9０-９]{1,2}){1,3})[\s　 ]+(?=\S)/);
         if (!m) return;
         first.textContent = t.slice(m[0].length);
         out.headingNumbers = (out.headingNumbers || 0) + 1;
       });
     }
 
-    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.relFixed || out.structureMoved.length || out.headingNumbers || out.dedup.length) {
+    /* R7: 表の見出しセル（th）に scope が無いと、読み上げ環境で列・行の見出しが本文セルに結び付かない。thead 内の th は列見出し（col）、tbody の行頭の th は行見出し（row）として補う。既に scope がある th は触らない */
+    Array.prototype.slice.call(doc.body.querySelectorAll("table th")).forEach(function (th) {
+      if (th.hasAttribute("scope")) return;
+      var inHead = !!th.closest("thead");
+      var tr = th.closest("tr");
+      var firstCell = tr && tr.cells && tr.cells[0] === th;
+      var rowHead = !inHead && firstCell && !!th.closest("tbody, table");
+      if (inHead || (tr && !th.closest("tbody") && !firstCell)) th.setAttribute("scope", "col");
+      else if (rowHead) th.setAttribute("scope", "row");
+      else th.setAttribute("scope", "col");
+      out.thScope = (out.thScope || 0) + 1;
+    });
+
+    if (out.merged.length || out.moved.length || out.removedTags.length || out.strippedAttrs || out.unwrapped || out.relFixed || out.structureMoved.length || out.headingNumbers || out.thScope || out.dedup.length) {
       var dt = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">\n" : "";
       out.html = dt + doc.documentElement.outerHTML;
       out.changed = true;
@@ -2073,10 +1917,7 @@
        （<sup>で包まれていない引用、例: 表の<td>内の裸のリンクも対象にする） */
     var anchors = Array.prototype.filter.call(doc.querySelectorAll('a[href^="#ref-"]'), notInAppendix);
     if (!anchors.length) return res;
-    /* 2026-09-04(第4回徹底監査・MEDIUM-11): mapのキーは文書に書かれた資料IDの文字列
-       そのまま（0詰めが揺れうる）だったため、"1-7"（本文の引用）と"1-07"（参考文献の
-       id）が別キー扱いになり、引用が本来の資料に解決せず不整合になっていた。
-       canonId()で0詰めを剥がした値をキーにする（属性値自体は書き換えない） */
+    /* mapのキーは canonId() で0詰めを剥がした値にする（"1-7"（本文の引用）と"1-07"（参考文献の id）を同じ資料に解決する。属性値自体は書き換えない） */
     var map = {}, order = [];
     anchors.forEach(function (a) {
       var old = (a.getAttribute("href") || "").slice("#ref-".length);
@@ -2128,9 +1969,7 @@
     return res;
   }
 
-  /* 2026-10-16: 引用番号の整形と参考文献の日付。いずれも文字列処理（DOMParser は使わない: jsdom では呼ぶたびに文書が
-     保持されてテストがメモリ不足になった。finalize のたびに呼ぶ処理は軽くする）。
-     付録（別採番）の範囲は触らない。変更が無ければ同じ文字列を返す。 */
+  /* 引用番号の整形と参考文献の日付。いずれも文字列処理（DOMParser は使わない: finalize のたびに呼ぶ処理は軽くする）。付録（別採番）の範囲は触らない。変更が無ければ同じ文字列を返す。 */
   function appendixRanges(s) {
     var ranges = [], re = /<section\b[^>]*class="[^"]*\bappendix\b[^"]*"[^>]*>/g, m;
     while ((m = re.exec(s))) {
@@ -2172,8 +2011,7 @@
     });
     return changed ? out : s;
   }
-  /* 参考文献の書誌テキストの日付（2025-03-10・2025-03）は折り返さない（ハイフンの位置で「2026-/04-10」と割れて読めなかった）。
-     URL（href）の中の日付は包まない。外部リンクの <a target="_blank"> の表示テキストだけが対象 */
+  /* 参考文献の書誌テキストの日付（2025-03-10・2025-03）は折り返さない（ハイフンの位置で割れて読めなくなる）。URL（href）の中の日付は包まない。外部リンクの <a target="_blank"> の表示テキストだけが対象 */
   function polishRefs(html) {
     var s = String(html || "");
     if (s.indexOf('target="_blank"') < 0) return s;
@@ -2272,9 +2110,7 @@
       "</div>";
   }
   function coverStatsHtml(st) {
-    /* 2026-09-03(7回目・初実走FB): 閲覧のみ0件だとconsultedCount===refCountになり、
-       「参考文献」「参照資料」に同じ数字が並んで冗長だった（実走で確認）。
-       閲覧のみが無いときはこのタイルを省く */
+    /* 閲覧のみが0件だと consultedCount===refCount になり「参考文献」「参照資料」に同じ数字が並ぶので、そのときはこのタイルを省く */
     var consultedTile = st.appendixCount > 0 ? statTile(st.consultedCount, "参照資料") : "";
     return '<div class="stat-row">' +
       statTile(st.refCount, "参考文献") +
@@ -2313,13 +2149,7 @@
       COVER_STATS: coverStatsHtml(st)
     };
     re.lastIndex = 0;
-    /* 2026-09-04(第4回徹底監査・MEDIUM-12): 「属性値の中か」の判定に s.lastIndexOf("<"/">")
-       を使うと、引用符内の">"（title="a>b"）を実際のタグ境界と誤認し、属性値の中と
-       誤判定してしまう（逆に、本当は属性値の中なのに見逃す側にも倒れうる）。
-       RE_TAG_ONLYと同じ引用符対応のタグ検出でマスクした文字列を使い、トークンの
-       開始位置がマスクされていれば（\nに置き換わっていれば）タグ（属性値）の
-       内側と判定する。タグ自身の直後（本来の正しい配置）ではその位置は
-       マスクされていない元の文字のままなので誤検出しない */
+    /* 「属性値の中か」の判定は、RE_TAG_ONLY と同じ引用符対応のタグ検出でマスクした文字列を使う（lastIndexOf("<"/">") だと title="a>b" の ">" をタグ境界と誤認する）。トークンの開始位置がマスクされていればタグ（属性値）の内側と判定する。タグ自身の直後（正しい配置）ではその位置はマスクされないので誤検出しない */
     var maskedForTokens = maskRegionsAndTags(s);
     out.html = s.replace(re, function (all, rawName, offset) {
       out.seen++;
@@ -2334,6 +2164,8 @@
         if (out.misplaced.indexOf(canon) === -1) out.misplaced.push(canon);
         return all;
       }
+      /* 表紙の期間欄・meta由来の値はタグ断片を含みうる。置換はサニタイズの後に走るため、HTML断片として組み立てた2つのトークン以外はエスケープしてから差し込む */
+      if (canon !== "COVER_STATS" && canon !== "COVERAGE_CARD") v = escText(v);
       out.filled[canon] = v;
       return v;
     });
@@ -2407,6 +2239,11 @@
           "同じURLを指す参考文献が複数あったため、先に登場する1件へ引用をまとめました。統合した項目: " +
           rep.merged.slice(0, 8).map(function (m) { return "ref-" + m.from + "→ref-" + m.to; }).join(", "),
           { kind: "log", title: "同じ資料が重複していた参考文献 " + rep.merged.length + " 件を1つにまとめました" });
+      }
+      if (rep.thScope) {
+        addResult(results, true, "表の見出しセル " + rep.thScope + " 件に scope を補いました",
+          "読み上げ環境で列・行の見出しが本文セルに結び付くよう、th に scope（col／row）を付けました。",
+          { kind: "log", title: "表の見出しセルに scope を補いました（" + rep.thScope + "件）" });
       }
       if (rep.headingNumbers) {
         addResult(results, true, "見出しの手打ち章番号 " + rep.headingNumbers + " 件を外しました",
@@ -2495,8 +2332,7 @@
                           : "本文に直接リンクはありません" });
 
     // 新規: 許可外リンク（mailto:/tel:/javascript:）はどこにも書けない（.disclaimer含む）
-    /* 2026-10-14(監査・B1-b): 解除側（sanitizeForbiddenAndSchemes）と同じ isDangerousHref /
-       dangerousLinkAttr で判定し、制御文字入りや xlink:href の偽装を検出漏れしない */
+    /* 解除側（sanitizeForbiddenAndSchemes）と同じ isDangerousHref / dangerousLinkAttr で判定し、制御文字入りや xlink:href の偽装を検出漏れしない */
     var badScheme = Array.prototype.filter.call(doc.querySelectorAll("a"), function (a) {
       return !!dangerousLinkAttr(a);
     });
@@ -2536,8 +2372,7 @@
             next: len >= goal ? "" : "任意: AIに「本文を増補して」と送る" });
       }
       // 17. rr:confirmed-count と本文ID（引用C ∪ UNCITED）の整合
-      /* 2026-09-24(viewer第2弾・0詰め保持): rawIdsにcanon→本文の生表記（0詰め込み）を
-         集める。AIへの修復指示（over/missingIdsの列挙）はcanonではなくこちらで出す */
+      /* rawIdsにcanon→本文の生表記（0詰め込み）を集める。AIへの修復指示（over/missingIdsの列挙）はcanonではなくこちらで出す */
       var rawIds = {};
       var ids = citedClaimSet(doc, rawIds);
       parseUncited(html).entries.forEach(function (e) {
@@ -2549,14 +2384,7 @@
       var okc = union === total;
       var d17 = "";
       var missingIds = [];
-      /* PART 1のPLANコメントから「本文に載るはずのID全体」を復元する。実走で、欠落25件を
-         件数だけ伝えたところ、AIは全6PARTを出し直しても同じ25件を落としたままだった
-         （どのIDが欠けているか知りようがない）。以降はIDを実名で返す。
-         列挙は打ち切らない——12件だけ挙げれば12件だけ直る、を再生産するため。
-         PLANの割当自体が確認済み件数と一致していない（plan17.count !== total）ときは
-         「PLANの外＝超過」の判定が信用できない（正当な主張をPLAN不足のせいで
-         「削れ」と指示してしまう事故になる）ため、その場合は超過IDの個別列挙をせず
-         17bの割当修正へ誘導する */
+      /* PART 1のPLANコメントから「本文に載るはずのID全体」を復元し、欠落IDを実名で返す（件数だけでは何を直せばよいか分からない）。列挙は打ち切らない。PLANの割当自体が確認済み件数と一致していない（plan17.count !== total）ときは「PLANの外＝超過」の判定が信用できず、正当な主張を「削れ」と指示してしまうため、超過IDの個別列挙をせず17bの割当修正へ誘導する */
       var plan17 = parsePlan(html);
       var planTrustworthy = plan17.present && plan17.count && plan17.count === total;
       if (!okc && union > total) {
@@ -2617,11 +2445,7 @@
             "欠けているIDを列挙してから直してください。";
         }
       }
-      /* 2026-09-02（オーナー判断）: 主張IDの差分が片側だけ（欠落のみ、または超過のみ）で、
-         かつUNCITED上限（max(1,5%)）以内・原因IDを実名で特定できている場合は黄に落とす
-         （AIへは送らない。IDは画面のtitleへそのまま表示する）。実走で、引用率80%要件を
-         満たす3%の欠落（207件中6件）がそのまま赤としてAIに送られ、出し直しを招いていた。
-         両方混在・上限超過・PLAN不信頼で特定できない場合は従来どおり赤のまま送る */
+      /* 主張IDの差分が片側だけ（欠落のみ、または超過のみ）で、かつUNCITED上限（max(1,5%)）以内・原因IDを実名で特定できている場合は黄に落とす（AIへは送らない。IDは画面のtitleへ表示する）。引用率80%要件を満たす程度の欠落を赤でAIに送ると出し直しを招くため。両方混在・上限超過・PLAN不信頼で特定できない場合は従来どおり赤のまま送る */
       var uncitedCap17 = Math.max(1, Math.floor(total * 0.05));
       var mild17 = false;
       if (!okc) {
@@ -2641,13 +2465,7 @@
           missingIds: missingIds,
           next: okc ? "" : mild17 ? "任意: 差分IDを本文かUNCITED行へ追記" : "AIに「不備をコピー」の文面を送る" });
 
-      /* 17b. PLANコメント（章への主張割当）の整合。両KITは「確認済み主張の全IDを
-         どれかの章にちょうど1回ずつ割り当てる」と定めており、割当漏れがそのまま
-         引用漏れになる（実走: 25件が本文にもUNCITEDにも現れなかった上流原因）。
-         ただしPLANの欠落・不足それ自体は、本文の引用が足りている限り実害が無い
-         （割当を書かずに全件引用したレポートを赤にしても直すものが無い）。
-         そこで「本文側が既に不足している（okc偽）」ときだけ、その原因として報告する。
-         これによりPLANを持たない旧レポート・合成テストを赤にしない */
+      /* 17b. PLANコメント（章への主張割当）の整合。両KITは確認済み主張の全IDをどれかの章にちょうど1回ずつ割り当てると定めており、割当漏れがそのまま引用漏れになる。ただしPLANの欠落・不足それ自体は、本文の引用が足りている限り実害が無い（割当を書かずに全件引用したレポートを赤にしても直すものが無い）ので、「本文側が既に不足している（okc偽）」ときだけ原因として報告する。PLANを持たない旧レポート・合成テストは赤にしない */
       if (!okc) {
         var planIssues = [];
         if (!plan17.present || !plan17.count) {
@@ -2792,7 +2610,7 @@
     var parts = [];
     if (m.ymd) parts.push(m.ymd);
     if (m.theme) parts.push(sanitizeForFilename(m.theme).slice(0, 24));
-    /* 2026-10-15: research-id（内部ID）はファイル名に出さない（meta には残る。同僚に送る名前に内部語が出ていた） */
+    /* research-id（内部ID）はファイル名に出さない（meta には残る） */
     var name = parts.join("_");
     return (name || "research-robo-report") + ".html";
   }
@@ -2802,15 +2620,12 @@
      形式は YYMMDD_調査名（例: 260830_EV充電網）。日付を先頭に置くと保存先で
      時系列に並ぶ。reportMeta は8桁のまま返す（suggestFilename が使うため）ので、
      ここで2桁年に落とす */
-  /* 2026-10-15(レポートの内容とデザイン): 印刷時のランニングヘッド（@page @top-center）を "ResearchRobo" から
-     レポート題名に差し替える。題名は CSS 文字列としてエスケープ（" と \ と改行）し、コードポイントで40字に切る。
-     題名が取れなければ既定のまま返す */
+  /* 印刷時のランニングヘッド（@page @top-center）を "ResearchRobo" からレポート題名に差し替える。題名は CSS 文字列としてエスケープ（" と \ と改行）し、コードポイントで40字に切る。題名が取れなければ既定のまま返す */
   function cssString(s) {
     /* <style> の中に入るので "<" も CSS エスケープする（題名の </style> が本文へ漏れない。独立レビューで実行確認） */
     return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3c ").replace(/[\r\n\f]+/g, " ");
   }
-  /* reportMeta（DOMParser で文書全体を再パース）は finalize のたびに呼ぶと重く、jsdom では文書が保持されて
-     テストがメモリ不足になった（2026-10-16 実測）。ここでは <title> を正規表現で取り出す */
+  /* reportMeta（DOMParser で文書全体を再パース）は finalize のたびに呼ぶと重いので、ここでは <title> を正規表現で取り出す */
   function themeFromTitle(titleText) {
     return String(titleText || "")
       .replace(/\s*[|｜／/]\s*ResearchRobo\s*$/i, "")
@@ -2839,7 +2654,18 @@
     return name || "research-robo-report";
   }
 
+  /* ダウンロードしたHTMLは sandbox 外で開かれる。サニタイズをすり抜けた記述があっても実行・外部取得が起きないよう、保存直前に CSP の meta を head 先頭へ入れる（検査・プレビューには入れない。HEAD_FORBIDDEN_SEL が meta[http-equiv] を削るため） */
+  var DOWNLOAD_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">';
+  function withDownloadCsp(html) {
+    var s = String(html || "");
+    if (/http-equiv=["']?Content-Security-Policy/i.test(s)) return s;
+    var i = s.search(/<head\b[^>]*>/i);
+    if (i < 0) return s;
+    var j = s.indexOf(">", i) + 1;
+    return s.slice(0, j) + "\n" + DOWNLOAD_CSP + s.slice(j);
+  }
   function downloadHtml(html) {
+    html = withDownloadCsp(html);
     var filename = suggestFilename(html);
     var blob = new Blob([html], { type: "text/html;charset=utf-8" });
     var url = URL.createObjectURL(blob);
@@ -2914,6 +2740,8 @@
     reportCss: reportCss,
     tidyCites: tidyCites,
     polishRefs: polishRefs,
+    cssUnescape: cssUnescape,
+    withDownloadCsp: withDownloadCsp,
     downloadHtml: downloadHtml
   };
 

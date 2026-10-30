@@ -55,7 +55,7 @@ MIME = {
 def _denied(rel):
     """rel: posix-style path relative to ROOT, no leading slash, already
     normalized (no '..', no leading '/'); may name a file or a directory."""
-    # 2026-10-14 (audit L3): compare case-insensitively and refuse backslashes. On a
+    # Compare case-insensitively and refuse backslashes. On a
     # case-insensitive filesystem (macOS/Windows) "DEV/CLAUDE.md" opens dev/CLAUDE.md, and
     # on Windows "dev\\CLAUDE.md" is the same path; both slipped past the exact-match
     # lowercase deny-list in the --no-git fallback. (Git mode is protected by the
@@ -107,7 +107,7 @@ class Handler(SimpleHTTPRequestHandler):
         rel = posixpath.normpath(unquote(urlsplit(path).path)).lstrip("/")
         if rel == ".":
             rel = ""
-        # 2026-10-14 (audit B6): a NUL byte (%00) makes os.path.realpath raise
+        # A NUL byte (%00) makes os.path.realpath raise
         # ValueError, which escaped the handler and dropped the connection
         # instead of answering 404. Deny it up front like any other bad path.
         if "\x00" in rel or rel.startswith("..") or ":" in rel:
@@ -135,7 +135,7 @@ class Handler(SimpleHTTPRequestHandler):
         return None
 
     def guess_type(self, path):
-        if os.path.basename(path) == "LICENSE":
+        if os.path.basename(path) in ("LICENSE", "LICENSE-CODE"):
             return "text/plain; charset=utf-8"
         _, ext = posixpath.splitext(path)
         return MIME.get(ext.lower()) or super().guess_type(path)

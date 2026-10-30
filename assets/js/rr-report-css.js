@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT (see LICENSE-CODE) */
 /* ResearchRobo レポート書式CSS（viewer.html が使う。dispatch.html は v5.2 で組版機能を
    削除したため読み込まない）。KIT §24.2 のCSSを移設し、表紙Coverage Card・付録・
    表紙6タイルの折り返しを追加したもの。ブラウザ内だけで使う純データ。 */
@@ -5,8 +6,7 @@
   "use strict";
 
   var REPORT_CSS = [
-    /* 2026-10-15(レポートの内容とデザイン・levers監査): 補助色を #5C636E(6.06:1) → #4B525C(7.89:1, AAA)。
-       表の行罫線は --hair(1.63:1) だと白黒印刷で消えるため --rule(3.22:1) を分ける */
+    /* 補助色は #4B525C（7.89:1, AAA）。表の行罫線は --hair(1.63:1) だと白黒印刷で消えるため --rule(3.22:1) を分ける */
     ':root{--ink:#1E2126;--accent:#12263A;--sub:#4B525C;--hair:#C7CBD2;--rule:#8A9099;}',
     '@page{size:A4 landscape;margin:18mm 18mm;}',
     '@page{@bottom-right{content:counter(page) " / " counter(pages);font-size:9pt;color:var(--sub);}@top-center{content:"ResearchRobo";font-size:8pt;color:var(--sub);}}',
@@ -24,12 +24,10 @@
     '.exec-summary .headline{font-size:12pt;font-weight:700;color:var(--accent);margin:0 0 3mm;line-height:1.6;}',
     '.exec-summary ul{margin:0;padding-left:5mm;}',
     '.exec-summary li{margin-bottom:1.5mm;}',
-    '.structure-box{border-top:0.4pt solid var(--hair);padding:3mm 0 0;margin:0 0 8mm;}',
+    '.structure-box{border-top:0.4pt solid var(--hair);padding:3mm 0 0;margin:0 0 8mm;break-inside:avoid;}',
     '.structure-box h2{margin:0 0 2mm;font-size:10pt;letter-spacing:0.08em;color:var(--sub);border:none;padding:0;}',
     '.structure-box ol{margin:2mm 0 0;padding-left:5mm;}',
-    /* 2026-09-03(7回目・初実走FB): 目次の調査手法・対象範囲(#sec-method)はbody-columns
-       の外にあり見出し自体には章番号が付かないため、目次側だけ数字が付くと対応が
-       取れなくなる（実走で確認）。この項目だけ番号を消す */
+    /* 目次の調査手法・対象範囲(#sec-method)は body-columns の外にあり見出し自体には章番号が付かないため、目次側だけ数字が付くと対応が取れなくなる。この項目だけ番号を消す */
     '.toc li:has(a[href="#sec-method"]){list-style:none;}',
     'h2{font-family:"Yu Mincho",YuMincho,"Hiragino Mincho ProN","Noto Serif JP",serif;font-size:14pt;font-weight:600;color:var(--ink);border-top:1.2pt solid var(--accent);padding-top:2.5mm;margin-top:10mm;break-after:avoid;}',
     'h3{font-size:11pt;color:var(--ink);font-weight:700;margin-top:6mm;break-after:avoid;}',
@@ -37,8 +35,7 @@
     'p.note{font-size:9pt;color:var(--sub);margin:1mm 0 3mm;}',
     'p,li{orphans:3;widows:3;}',
     '.body-columns,.exec-summary{text-align:justify;line-break:strict;}',
-    /* 2026-10-16(オーナー指摘「表がださい。縦線が入り、無駄に左右に伸びている」「左寄せがださい」): 表は内容の幅に収め、
-       ページ中央に置く（width:auto・margin:auto）。列の少ない表を全幅に広げると数字が左右に離れて読めない。比較表は最小幅、付録C は全幅 */
+    /* 表は内容の幅に収め、ページ中央に置く（width:auto・margin:auto）。列の少ない表を全幅に広げると数字が左右に離れて読めない。比較表は最小幅、付録C は全幅 */
     'table{width:auto;max-width:100%;border-collapse:collapse;margin:3mm auto;font-size:9pt;line-height:1.3;border-top:1.2pt solid var(--ink);border-bottom:1.2pt solid var(--ink);font-variant-numeric:tabular-nums;}',
     'thead{display:table-header-group;}',
     'tr,li{break-inside:avoid;}',
@@ -73,20 +70,18 @@
     '.body-columns{counter-reset:h2c figc tabc;column-count:2;column-gap:12mm;}',
     /* 段間の罫線はやめて余白だけにする。全幅の表を貫通して縦線が入っていた。結論文は段をまたがず全幅 */
     '.body-columns .key-message{column-span:all;}',
-    /* 2026-10-16: 小見出し・注記まで全幅にすると、段組が細かく分断されて頁末に短い段と大きな空白ができた（46頁に膨らんだ実測）ため、
-       全幅にするのは章見出し・結論文・表・図だけにする */
+    /* 小見出し・注記まで全幅にすると段組が細かく分断され、頁末に短い段と大きな空白ができるため、全幅にするのは章見出し・結論文・表・図だけにする */
     '.body-columns h2{counter-increment:h2c;counter-reset:h3c;column-span:all;}',
     '.body-columns h2::before{content:counter(h2c) ".\\2002";font-family:"Helvetica Neue",Arial,sans-serif;color:var(--accent);}',
     '.body-columns h3{counter-increment:h3c;}',
     '.body-columns h3::before{content:counter(h2c) "." counter(h3c) "\\2002";font-family:"Helvetica Neue",Arial,sans-serif;color:var(--accent);}',
     '.body-columns table,.body-columns figure{column-span:all;}',
-    /* 2026-09-03(7回目・初実走FB): body全体のpalt（プロポーショナル詰め）が「」等の
-       約物の左余白を詰め、直前の欧文1文字と重なって「OpenA「I …」」のように文字化けして
-       見えた（実走で確認）。書誌欄だけpaltを無効化する */
+    /* body全体のpalt（プロポーショナル詰め）が「」等の約物の左余白を詰め、直前の欧文1文字と重なって読めなくなるため、書誌欄だけpaltを無効化する */
     '.references,.appendix{font-feature-settings:normal;}',
-    /* 2026-10-16: 参考文献の強制改ページをやめる（見本9ページ中、直前のページが9割空になった。thead は繰り返されるので表の分割も許す） */
+    /* 参考文献の強制改ページはしない（直前のページがほぼ空白になる。thead は繰り返されるので表の分割も許す） */
     '.references{break-before:auto;margin-top:8mm;}',
-    '.references ol{column-count:2;column-gap:10mm;font-size:9pt;color:var(--sub);padding-left:5mm;}',
+    /* 3桁の番号（102.〜）が5mmからはみ出して先頭が欠けないよう、左余白を広げる */
+    '.references ol{column-count:2;column-gap:10mm;font-size:9pt;color:var(--sub);padding-left:9mm;}',
     '.references li{break-inside:avoid;margin-bottom:3mm;overflow-wrap:anywhere;}',
     '.references a{color:var(--accent);text-decoration:none;}',
     '.disclaimer{margin-top:10mm;font-size:8.5pt;color:var(--sub);border-top:0.4pt solid var(--hair);padding-top:3mm;}',

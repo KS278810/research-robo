@@ -12,8 +12,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="assets/images/favicon-512.png">
 <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
 
-<!-- 2026-10-14: Webフォントは使わない（Google Fontsへのリクエストをゼロにする。ユーザーのレポート内容を扱う
-     画面なので、外部へIP・参照元が送られる経路を残さない）。書体は端末のフォントに任せる -->
+<!-- Webフォントは使わない（Google Fontsへのリクエストをゼロにする。ユーザーのレポート内容を扱う画面なので、外部へIP・参照元が送られる経路を残さない）。書体は端末のフォントに任せる -->
 
 <style>
 *, *::before, *::after { box-sizing: border-box; }
@@ -95,8 +94,7 @@ textarea#input-html {
 textarea#input-html:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 
 .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem; }
-/* hidden属性を display:flex が打ち消してしまうため、明示的に優先させる
-   （実走: 「不備をコピー」が消えず、押すと「不備はありません」と出た） */
+/* hidden属性を display:flex が打ち消してしまうため、明示的に優先させる */
 .actions[hidden] { display: none; }
 .btn {
   display: inline-flex; align-items: center; gap: 0.45rem;
@@ -189,6 +187,9 @@ iframe#preview {
 .status-banner.state-done .status-title { color: var(--color-ok); }
 .status-notice { color: var(--color-mute); font-size: 0.8125rem; }
 .status-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.btn[hidden] { display: none; }
+.part-chip-del { margin-left: -0.2rem; margin-right: 0.4rem; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 0.9em; line-height: 1; padding: 0 0.15rem; }
+.part-chip-del:hover { color: var(--color-warn, #b45309); }
 .part-chip {
   display: inline-flex; align-items: center;
   padding: 0.15rem 0.6rem; border-radius: 999px;
@@ -218,10 +219,7 @@ footer.site-footer a { color: var(--color-mute); }
   .btn { justify-content: center; }
 }
 
-/* 2026-09-04(第4回徹底監査・MEDIUM-16): Ctrl+P/⌘+Pでこのページ自体を印刷すると、
-   ヘッダー・検査結果・プレビューiframe枠（70vhで途中クリップ）がそのまま印刷されて
-   しまう。保存は必ず「PDFとして保存」ボタン（プレビューiframe内で contentWindow.print()
-   を呼ぶ）から行うべきなので、ページ全体の印刷ではUIを隠し案内だけを出す */
+/* Ctrl+P/⌘+Pでこのページ自体を印刷するとヘッダー・検査結果・プレビューiframe枠（70vhで途中クリップ）がそのまま印刷されてしまう。保存は必ず「PDFとして保存」ボタン（プレビューiframe内で contentWindow.print() を呼ぶ）から行うべきなので、ページ全体の印刷ではUIを隠し案内だけを出す */
 @media print {
   body > * { display: none !important; }
   body::before {
@@ -268,6 +266,7 @@ footer.site-footer a { color: var(--color-mute); }
       <div class="actions">
         <button class="btn btn-primary" id="btn-check" type="button" disabled>検証してプレビュー</button>
         <button class="btn btn-outline" id="btn-clear" type="button">クリア</button>
+        <button class="btn btn-outline" id="btn-undo" type="button" hidden>直前に戻す</button>
       </div>
       <div class="status-banner" id="status-banner" hidden role="status" aria-live="polite">
         <img class="status-mascot" id="status-mascot" src="assets/images/mascot/mascot-point.webp" alt="" aria-hidden="true" width="64" height="64">
@@ -339,10 +338,7 @@ footer.site-footer a { color: var(--color-mute); }
       statusBanner.hidden = false;
       statusBanner.className = "status-banner";
       if (statusTitle) statusTitle.textContent = "";
-      /* RRが無いので updateStatusUI は呼べない（RR.partStatusに依存）。直接書く。
-         2026-09-14(Phase4): http(s)で開いている場合はこのページ自身のURL（サブパス・
-         社内ホスト先を含む）を案内する。file://で開いた場合だけ公開URLへ誘導する
-         （その場合はassetsフォルダごと保存されていないと動かないため） */
+      /* RRが無いので updateStatusUI は呼べない（RR.partStatusに依存）。直接書く。http(s)で開いている場合はこのページ自身のURL（サブパス・社内ホスト先を含む）を案内し、file://で開いた場合だけ公開URLへ誘導する（assetsフォルダごと保存されていないと動かないため） */
       var selfUrl = /^https?:$/.test(location.protocol)
         ? new URL("viewer.html", location.href).href
         : "https://ks278810.github.io/research-robo/viewer.html";
@@ -363,6 +359,7 @@ footer.site-footer a { color: var(--color-mute); }
   var input = document.getElementById("input-html");
   var checkBtn = document.getElementById("btn-check");
   var clearBtn = document.getElementById("btn-clear");
+  var undoBtn = document.getElementById("btn-undo");
   var printBtn = document.getElementById("btn-print");
   var resultsBox = document.getElementById("check-results");
   var listEl = document.getElementById("check-list");
@@ -449,7 +446,7 @@ footer.site-footer a { color: var(--color-mute); }
       if (k === "action") actions.push(r);
       else if (k === "warn") warns.push(r);
       else if (k === "log") autos.push(r);
-      else if (isUndecided(r)) undecideds.push(r);   /* 2026-10-17(wide監査B3): na より先に見る。逆順だと判定していない行が「自動で整えました」に入り、この群が常に空だった */
+      else if (isUndecided(r)) undecideds.push(r);   /* na より先に見る。逆順だと判定していない行が「自動で整えました」に入り、この群が常に空になる */
       else if (k === "na") autos.push(r);
       else oks.push(r);
     });
@@ -477,17 +474,9 @@ footer.site-footer a { color: var(--color-mute); }
     var lines = acts.map(function (r) {
       return "RR-CHECK: " + oneLine(r.label) + ": " + oneLine(r.detail);
     });
-    /* 実走: 「該当するPART」とだけ伝えたため、AIが推測で1つのPARTだけを出し直し、
-       原因が別PARTにあって不備が消えなかった。検査は結合後の全文に対して行うので、
-       どのPARTを直せばよいかはAIには分からない。全PARTの出し直しを既定にする */
+    /* 検査は結合後の全文に対して行うので、どのPARTを直せばよいかはAIには分からない。「該当するPART」とだけ伝えるとAIが推測で1つのPARTだけを出し直し、原因が別PARTにあると不備が消えない。全PARTの出し直しを既定にする */
     var n = partStore.n || 0;
-    /* 重複章（check 18）はlocal:trueなのでactsには入らず、既定では「クリア」して
-       貼り直すよう案内するしかない。だが実走で、貼り直しでは直らない原因
-       （AI自身が後のPARTで同じ章・枠を再出力した）が繰り返し起きた。
-       dupSelectorsが付いた行から、重複が実際にまたがっているPARTを生本文
-       走査で特定できた場合だけ、AI向けの出し直し文を合成する。特定できない
-       （同一PART内での重複・情報不足）場合は何もしない——从来どおり
-       「クリア」案内に任せる（誤った推測でPARTを名指ししない） */
+    /* 重複章（check 18）はlocal:trueなのでactsには入らず、既定では「クリア」して貼り直すよう案内するしかない。ただし貼り直しでは直らない原因（AI自身が後のPARTで同じ章・枠を再出力した）がある。dupSelectorsが付いた行から、重複が実際にまたがっているPARTを生本文走査で特定できた場合だけ、AI向けの出し直し文を合成する。特定できない（同一PART内での重複・情報不足）場合は何もしない（誤った推測でPARTを名指ししない） */
     var dupText = "";
     (function () {
       var dupRows = (results || []).filter(function (r) { return !r.ok && (r.dupSelectors || []).length; });
@@ -516,9 +505,7 @@ footer.site-footer a { color: var(--color-mute); }
         "（他のPARTはそのまま。ビューアは貼り直したPARTだけを差し替えます）。";
     })();
     if (!lines.length) return dupText;
-    /* 不備の文面から原因のPARTを特定できる場合（検出された文字列がそのPARTの本文に
-       含まれる）はそのPARTだけを名指しし、特定できない集計系の不備（引用率・件数など）は
-       全PARTの出し直しを求める。実走で、AIが推測で1つのPARTだけ直して不備が消えなかった */
+    /* 不備の文面から原因のPARTを特定できる場合（検出された文字列がそのPARTの本文に含まれる）はそのPARTだけを名指しし、特定できない集計系の不備（引用率・件数など）は全PARTの出し直しを求める */
     var culprits = {};
     var identifiable = true;
     acts.forEach(function (r) {
@@ -535,26 +522,13 @@ footer.site-footer a { color: var(--color-mute); }
         hit.forEach(function (k) { culprits[k] = true; });
         return;
       }
-      /* 章名を「、」区切りで列挙する2つの検査（出典の無い章／キーメッセージの無い章）は
-         「検出: 」形式ではないため上のパターンに乗らず、常に全PART出し直しに落ちていた。
-         実走で、章単位の不備なのに毎回レポート全体を書き直させてしまい、その結果
-         別の章に新しい不備を生む（実走で実際に発生）。章名は生PART本文の見出しに
-         そのまま出るので、同じ要領でPARTを特定する。1章でも見つからなければ
-         （誤った推測を避けるため）このcheckは識別不能のまま扱う */
+      /* 章名を「、」区切りで列挙する2つの検査（出典の無い章／キーメッセージの無い章）は「検出: 」形式ではないため上のパターンに乗らず、全PART出し直しに落ちると別の章に新しい不備を生む。章名は生PART本文の見出しにそのまま出るので、同じ要領でPARTを特定する。1章でも見つからなければ（誤った推測を避けるため）このcheckは識別不能のまま扱う */
       var cm = String(r.detail || "").match(/(?:引用番号が1件も無い章|見出しの直後が \.key-message でない章): ([^（]+)/);
       if (cm) {
         var chapters = cm[1].split("、").map(function (s) { return s.trim(); }).filter(Boolean);
         if (!chapters.length) { identifiable = false; return; }
-        /* 章名の生インデックス一致だと、目次（PART 1の<a href="#sec-N">章名</a>）や
-           PLANコメントの章名にも当たり、不備の無いPART 1まで名指ししてしまう
-           （実走で確認: 考察章1件の不備がPART 1と該当PARTの2本出し直しになった）。
-           章名は<h2>見出し</h2>の中身としてのみ本来出現するので、そこに限定する */
-        /* 完全一致だと、AIが手打ちの章番号（autoRepair R5が剥がす前の生PART本文の
-           「2. 章題」等）やトークン置換前の生の見出しを書いた場合に一致せず、
-           「識別不能→全PART出し直し」へ逆戻りする（実走ではないが監査で発見。
-           R5が章番号を剥がすのはビューアの表示時点であり、生PART本文には
-           番号が残っている）。包含一致にして、番号や記号が前後に付いていても
-           拾えるようにする（目次へのh2限定は維持しているので誤爆のリスクは低い） */
+        /* 章名の生インデックス一致だと、目次（PART 1の<a href="#sec-N">章名</a>）やPLANコメントの章名にも当たり、不備の無いPART 1まで名指ししてしまう。章名は<h2>見出し</h2>の中身としてのみ本来出現するので、そこに限定する */
+        /* 完全一致だと、AIが手打ちの章番号（autoRepair R5が剥がす前の生PART本文の「2. 章題」等）やトークン置換前の生の見出しを書いた場合に一致せず、識別不能→全PART出し直しへ戻る。包含一致にして番号や記号が前後に付いていても拾う（目次へのh2限定は維持しているので誤爆のリスクは低い） */
         var partHasHeading = function (body, ch) {
           var re = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, m2;
           while ((m2 = re.exec(body))) {
@@ -579,10 +553,7 @@ footer.site-footer a { color: var(--color-mute); }
       identifiable = false;
     });
     var ks = Object.keys(culprits).sort(function (a, b) { return a - b; });
-    /* UNCITED系（引用カバー率・件数一致・UNCITED割合）は検出文字列を持たないため従来は
-       全PART出し直しに落ちていたが、実際は最終PARTの <!-- UNCITED: --> 行の修正だけで
-       解消できることが多い（実走: 全PART再生成の重さがAIの回避応答を誘発した）。
-       赤が全てこの族なら最終PARTを名指しする */
+    /* UNCITED系（引用カバー率・件数一致・UNCITED割合）は検出文字列を持たないが、最終PARTの <!-- UNCITED: --> 行の修正だけで解消できることが多い。赤が全てこの族なら最終PARTを名指しする（全PART再生成は重く、AIの回避応答を誘発する） */
     var UNCITED_FAMILY = ["確認済み事実のうち8割以上が本文で引用されている",
       "確認済み件数（rr:confirmed-count）と本文の主張ID数が一致している",
       "UNCITEDの割合が確認済み事実の5%以内である",
@@ -592,10 +563,7 @@ footer.site-footer a { color: var(--color-mute); }
     var allUncited = acts.length > 0 && acts.every(function (r) {
       return UNCITED_FAMILY.indexOf(String(r.label || "")) >= 0;
     });
-    /* 欠落IDが分かっている場合（check 17）、PLANコメントで「そのIDを担当する章」を引き、
-       その章の <section id="sec-N"> を含むPARTを特定する。実走で、6分割レポートの
-       不備修正に全6PARTの再出力を求めてしまい負担が大きかった。直すべきPARTだけを
-       名指しできれば、出し直しは1〜2PARTで済む */
+    /* 欠落IDが分かっている場合（check 17）、PLANコメントで「そのIDを担当する章」を引き、その章の <section id="sec-N"> を含むPARTを特定する。直すべきPARTだけを名指しできれば、出し直しは1〜2PARTで済む */
     var missingByPart = null;
     (function () {
       var RR = window.RRChecks;
@@ -624,8 +592,7 @@ footer.site-footer a { color: var(--color-mute); }
         var sec = secOf[id];
         var pk = sec ? partOfSec[sec] : 0;
         if (!pk) return;
-        /* 2026-09-24(viewer第2弾・0詰め保持): 表示はPLANコメントの生表記（0詰め込み）を
-           使う。plan.allのキー（id）自体は突合用のcanon形式のまま変えない */
+        /* 表示はPLANコメントの生表記（0詰め込み）を使う。plan.allのキー（id）自体は突合用のcanon形式のまま変えない */
         (map[pk] = map[pk] || []).push(plan.raw[id] || id);
         resolved++;
       });
@@ -660,12 +627,8 @@ footer.site-footer a { color: var(--color-mute); }
     } else {
       target = "レポートを丸ごと出し直してください。";
     }
-    /* 出し直しは1回まで（ユーザー方針）。2回目の文面には「これが最後」と明示し、
-       残った不備は残したままでよいと伝える。AI側が延々と直そうとして
-       重い再出力を繰り返すのを止める */
-    /* 実走: fixRounds>=1の間ずっと「これが最後」を出し続けたため、3回連続で
-       「最後」と言われる状態になっていた。「最後」は1回目の出し直しにだけ使い、
-       2回目以降は回数を正直に伝える文面に変える */
+    /* 出し直しは1回まで。2回目の文面には「これが最後」と明示し、残った不備は残したままでよいと伝える（AI側が延々と直そうとして重い再出力を繰り返すのを止める） */
+    /* 「最後」は1回目の出し直しにだけ使い、2回目以降は回数を正直に伝える文面に変える（fixRounds>=1の間ずっと「最後」と言い続けない） */
     var lastRound = fixRounds === 1 ? "（これが最後の出し直しです。1回で直せなかった項目は、直せない理由を1行ずつ挙げるだけでよく、そのまま残して構いません）"
       : fixRounds >= 2 ? "（出し直しは既に" + fixRounds + "回行っています。残った項目は直せない理由を1行ずつ挙げるだけでよく、そのまま残して構いません）"
       : "";
@@ -702,8 +665,7 @@ footer.site-footer a { color: var(--color-mute); }
      （追記していくと、同じ状態で2回描画したときに案内が二重になる） */
   var eventNotice = "";
 
-  /* 2026-09-04(第4回徹底監査・MEDIUM-15): 保存失敗（容量超過等）が無言だった。
-     rlStoreWarning（結果一覧側）と同じパターンで、保存に失敗したことを状態表示に出す */
+  /* 保存失敗（容量超過等）が無言にならないよう、rlStoreWarning（結果一覧側）と同じパターンで状態表示に出す */
   var partStoreWarning = "";
   function persistStore() {
     try {
@@ -749,8 +711,7 @@ footer.site-footer a { color: var(--color-mute); }
     return false;
   }
 
-  /* 2026-09-03(バグ再修正・A12): 保存できない環境（容量超過等）では再読み込み時に古い
-     蓄積へ無言で戻ってしまうため、次の状態表示にこの1行を足す（renderPartStatusが読む） */
+  /* 保存できない環境（容量超過等）では再読み込み時に古い蓄積へ無言で戻ってしまうため、次の状態表示にこの1行を足す（renderPartStatusが読む） */
   var rlStoreWarning = "";
   function persistResultListStore() {
     try {
@@ -823,8 +784,20 @@ footer.site-footer a { color: var(--color-mute); }
           var got = stC.received.indexOf(k) >= 0 && stC.missing.indexOf(k) < 0 && !isTrunc;
           var chip = document.createElement("span");
           chip.className = "part-chip" + (got ? " got" : "");
-          /* 途中切れは受領済み(●)ではなく△で示す（2026-10-15: ●だと「届いた」と読めて見出しの案内と食い違う） */
+          /* 途中切れは受領済み(●)ではなく△で示す（●だと「届いた」と読めて見出しの案内と食い違う） */
           chip.textContent = (got ? "● " : (isTrunc ? "△ " : "○ ")) + "PART " + k + (isTrunc ? "（途中切れ）" : "");
+          /* 誤って貼ったPARTを個別に外せる（「クリア」では全部消える） */
+          if (partStore.parts[k]) {
+            var del = document.createElement("button");
+            del.type = "button";
+            del.className = "part-chip-del";
+            del.setAttribute("data-part", String(k));
+            del.setAttribute("aria-label", "PART " + k + " を削除");
+            del.textContent = "×";
+            statusChips.appendChild(chip);
+            statusChips.appendChild(del);
+            continue;
+          }
           statusChips.appendChild(chip);
         }
       }
@@ -858,10 +831,8 @@ footer.site-footer a { color: var(--color-mute); }
           /* 常設の説明文を置かない代わりに、赤が出たときだけ貼り戻しの作法を出す */
           guidance = partStore.n ? "修正版PARTは、クリアせずそのまま上の欄へ貼ると置き換わります（直したPARTだけでかまいません）" : "修正したレポートは、クリアせずそのまま上の欄へ貼ると置き換わります";
           if (fixRounds >= 1) {
-            /* 出し直しは1回まで。2回目以降も残る赤は、直させ続けるより
-               そのまま保存させたほうがよい（ユーザー方針） */
-            /* 2026-09-03(7回目・初実走FB): 「×が残っている」と「保存して構わない」を
-               1文に同居させると矛盾に見える（実走FB）。判定文と案内文を分ける */
+            /* 出し直しは1回まで。2回目以降も残る赤は、直させ続けるよりそのまま保存させたほうがよい */
+            /* 「×が残っている」と「保存して構わない」を1文に同居させると矛盾に見えるため、判定文と案内文を分ける */
             statusTitle.textContent = "×の項目が" + n + "件 残っています（AIでは直せない項目です）";
             guidance = "出し直しは1回で十分です。残った不備はそのままで問題ありません。このまま「PDFとして保存」して構いません。もう一度だけ直したい場合は「不備をコピー」を押してください";
           }
@@ -905,7 +876,10 @@ footer.site-footer a { color: var(--color-mute); }
       printBtn.classList.toggle("btn-glow-ready", state === "done");
     }
     if (downloadBtn) {
-      downloadBtn.disabled = state === "empty" || state === "collecting";
+      /* 許可外タグ・許可外リンクが残ったままの保存は止める（sandbox外で開かれるため） */
+      var unsafeRed = (lastResults || []).some(function (r) { return !r.ok && /^許可外/.test(String(r.label || "")); });
+      downloadBtn.disabled = state === "empty" || state === "collecting" || unsafeRed;
+      downloadBtn.title = unsafeRed ? "許可外のタグ・リンクが残っているため保存できません。不備を直してから保存してください" : "";
     }
     if (copyIssuesBtn) {
       /* local:true の赤しかないときは「不備をコピー」が空文字列を返す（issueTextの
@@ -927,21 +901,17 @@ footer.site-footer a { color: var(--color-mute); }
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
       fixRounds = 0;
       delete partStore.capY;   /* 別のレポート（別のチャットかもしれない）の出力上限は引き継がない */
-      /* 2026-09-03(バグ再修正・A10): 結果一覧の蓄積を残すと、前のレポートの主張が
-         新しいレポートの付録Cに混ざる（実走で確認した「別レポート」誤結合と同型） */
+      /* 結果一覧の蓄積を残すと、前のレポートの主張が新しいレポートの付録Cに混ざる（別レポート誤結合を防ぐ） */
       resultListStore = [];
       persistResultListStore();
       notices.push(title40
         ? "別のレポートのPARTが届きました。前のレポート（" + title40 + "）のPART " + plan.dropped.join(", ") + " は破棄しました（結果一覧の蓄積も破棄しました）"
         : "別のレポートのPARTが届きました。前のレポートのPART " + plan.dropped.join(", ") + " は破棄しました（結果一覧の蓄積も破棄しました）");
     } else if (plan.mode === "newCount") {
-      /* 総数が変わった＝AIが分割をやり直した合図。出し直し回数もここでリセットする
-         （リセットしないと、新しい分割の1回目の修正がいきなり「これが最後です」に
-         なってしまう） */
+      /* 総数が変わった＝AIが分割をやり直した合図。出し直し回数もここでリセットする（リセットしないと、新しい分割の1回目の修正がいきなり「これが最後です」になる） */
       fixRounds = 0;
       plan.dropped.forEach(function (k) { delete partStore.parts[k]; });
-      /* 2026-10-15(独立レビューで実行確認): 総数が変わった＝AIが分割をやり直した合図なのに、温存されたPART
-         （k < kmin）の途中切れ回数が残り、新しい分割の1回目から「2回続けて」と案内していた。回数も数え直す */
+      /* 総数が変わった＝AIが分割をやり直した合図なので、温存されたPART（k < kmin）の途中切れ回数も数え直す（新しい分割の1回目から「2回続けて」と案内しない） */
       Object.keys(partStore.parts).forEach(function (k) { if (partStore.parts[k]) delete partStore.parts[k].trunc; });
       if (plan.dropped.length) {
         notices.push("PARTの総数が食い違っています（これまで " + plan.prevN + "、今回 " + plan.n +
@@ -981,21 +951,28 @@ footer.site-footer a { color: var(--color-mute); }
   var lastFinalizeSrc = null;
 
   function finalize(html, info) {
+    /* 途中で例外が出ても画面が古いまま止まらないよう、何が起きたかを案内する */
+    try {
+      finalizeInner(html, info);
+    } catch (e) {
+      eventNotice = "検査の途中でエラーが起きました（" + String(e && e.message || e).slice(0, 120) + "）。ページを再読み込みして、PARTを貼り直してください。";
+      updateStatusUI();
+    }
+  }
+  function finalizeInner(html, info) {
     info = info || {};
     lastFinalizeSrc = { html: html, info: info };
     /* AIが短い記法で書いた引用・参考文献を、従来と同一のHTMLへ戻す。
        フルHTMLで書かれた文書には該当パターンが無いので素通しになる */
     var expanded = RR.expandCompact(html);
-    /* 2026-10-15: ランニングヘッドをレポート題名にした CSS を注入する */
+    /* ランニングヘッドをレポート題名にしたCSSを注入する */
     var styled = RR.ensureStyle(expanded.html, RR.reportCss(CSS, expanded.html));
     var v51 = !!(info.parts) || /\{\{\s*RR:/.test(styled.html) || kitVersionAtLeast51(styled.html);
     /* 自動修復 → 採番 の順。修復で参考文献が増減するため採番より前に行う */
-    /* 2026-09-04(第4回徹底監査・HIGH-3): legacy文書（v5.1未満）もsanitizeOnlyで
-       許可外タグ・危険スキームのリンク・イベント属性だけは必ず取り除く。参考文献の
-       統合・付録移動・見出し再採番などv5.1専用の処理はv51のときだけautoRepairで行う */
+    /* legacy文書（v5.1未満）もsanitizeOnlyで許可外タグ・危険スキームのリンク・イベント属性だけは必ず取り除く。参考文献の統合・付録移動・見出し再採番などv5.1専用の処理はv51のときだけautoRepairで行う */
     var rep = v51 ? RR.autoRepair(styled.html) : RR.sanitizeOnly(styled.html);
     var rn = v51 ? RR.renumberRefs(rep.html) : { html: rep.html, changed: false, refCount: 0, unreferenced: [] };
-    /* 2026-10-16: 引用番号の重複除去・昇順（[1][1][2]→[1][2]） */
+    /* 引用番号の重複除去・昇順（[1][1][2]→[1][2]） */
     var filled = RR.fillTokens(v51 ? RR.polishRefs(RR.tidyCites(rn.html)) : rn.html);
     currentHtml = filled.html;
     var checkInfo = {
@@ -1003,7 +980,7 @@ footer.site-footer a { color: var(--color-mute); }
       trimmedOutside: !!info.trimmedOutside,
       parts: info.parts || null,
       cssInjected: styled.hadStyle ? undefined : styled.injected,
-      cssFailed: styled.failed,
+      cssFailed: styled.failed || !CSS,
       cssStrippedForeign: !!styled.strippedForeignStyle,
       renumber: v51 ? rn : null,
       repair: v51 ? rep : null,
@@ -1014,11 +991,7 @@ footer.site-footer a { color: var(--color-mute); }
       isLite: /^lite-/.test(RR.metaContent(new DOMParser().parseFromString(styled.html, "text/html"), "rr:kit-version") || "")
     };
     renderResults(RR.runChecks(currentHtml, checkInfo));
-    /* 結果一覧（S/C/N/RECEIPT行）が貼られていれば、付録B直後・免責の前に付録C（主張台帳）を
-       機械生成して差し込む——**検査(runChecks)の後**に行う（プレビュー・保存用のcurrentHtml
-       だけを変える）。検査より前に差し込むと、抜粋欄に含まれる `{…}`/`[[…]]`/`R|` のような
-       文字列を検査1・19が「未展開の記法」として検出し、AIの出力に存在しない文字列を
-       延々と直せと送る事故になる（実走で確認された、この機能自体が新たに作った派生赤） */
+    /* 結果一覧（S/C/N/RECEIPT行）が貼られていれば、付録B直後・免責の前に付録C（主張台帳）を機械生成して差し込む。検査(runChecks)の**後**に行い、プレビュー・保存用のcurrentHtmlだけを変える。検査より前に差し込むと、抜粋欄に含まれる `{…}`/`[[…]]`/`R|` のような文字列を検査1・19が「未展開の記法」として検出し、AIの出力に存在しない文字列を直せと送ってしまう */
     if (v51 && resultListStore.length) {
       try {
         var docForLedger = new DOMParser().parseFromString(currentHtml, "text/html");
@@ -1042,19 +1015,13 @@ footer.site-footer a { color: var(--color-mute); }
     return s + sectionHtml;
   }
 
-  /* PARTマーカーが無い入力を「完成レポート」として処理してよいか。
-     </html>が無ければ完成文書ではありえない（必須条件）。<h1>や参考文献の見出しだけを
-     根拠にすると、AIの応答からたまたま<h1>まとめ</h1>のような断片だけをコピーした
-     ケースまで「完成レポート」と誤判定し、収集済みPARTを無警告で全部消してしまう
-     （実走で確認された事故——貼り付け欄も空にならず、直前の状態に戻す手段が無かった） */
+  /* PARTマーカーが無い入力を「完成レポート」として処理してよいか。</html>が無ければ完成文書ではありえない（必須条件）。<h1>や参考文献の見出しだけを根拠にすると、AIの応答からたまたま<h1>まとめ</h1>のような断片だけをコピーしたケースまで「完成レポート」と誤判定し、収集済みのPARTを全部消してしまう */
   function looksLikeCompleteReport(html) {
     var s = String(html || "");
     return /<\/html>/i.test(s);
   }
 
-  /* 2026-09-03(バグ再修正・A9): 1回の貼り付けに複数WPの結果一覧が続けて入っていても、
-     RR-RESULTヘッダの直前で区切って別ブロックにする（1つに潰すと後勝ちのWPで
-     全主張のIDが上書きされる）。ヘッダが無い・1個だけならそのまま1ブロック */
+  /* 1回の貼り付けに複数WPの結果一覧が続けて入っていても、RR-RESULTヘッダの直前で区切って別ブロックにする（1つに潰すと後勝ちのWPで全主張のIDが上書きされる）。ヘッダが無い・1個だけならそのまま1ブロック */
   function splitResultBlocks(raw) {
     var re = /^\s*(?:[-*|\s]*)RR-RESULT\b/mig;
     var idxs = [];
@@ -1066,12 +1033,7 @@ footer.site-footer a { color: var(--color-mute); }
     return segs;
   }
 
-  /* 2026-09-03(バグ再修正・A12): 完結済み（receiptあり）のブロックが完全に同一なら
-     蓄積しない（同じ結果一覧を2回貼った場合の二重化防止）。
-     2026-10-14(監査・B2): 分割途中のブロック（receipt無し）も、wp・RESULT_PART k/n・
-     C行の内容まで完全に同一なら積まない（RR.resultBlockSignature。「常に別物」だと
-     貼り直しで台帳が倍増し、再開用の末尾英字が誤って付いていた）。内容の違う分割
-     ブロックは従来どおり全て積む */
+  /* 完結済み（receiptあり）のブロックが完全に同一なら蓄積しない（同じ結果一覧を2回貼った場合の二重化防止）。分割途中のブロック（receipt無し）も、wp・RESULT_PART k/n・C行の内容まで完全に同一なら積まない（RR.resultBlockSignature）。内容の違う分割ブロックは従来どおり全て積む */
   function pushResultListBlock(rl) {
     var sig = RR.resultBlockSignature(rl);
     var dup = resultListStore.some(function (b) { return RR.resultBlockSignature(b) === sig; });
@@ -1129,7 +1091,11 @@ footer.site-footer a { color: var(--color-mute); }
          無し）の文書を貼り付けた後まで残らないようにする。
          finalize は状態バナーへ新しい案内を書くので、消すのはその前に行う */
       var hadParts = !!(partStore.n || Object.keys(partStore.parts).length);
+      if (hadParts && !askConfirm("PARTの受け取り途中です。貼り付けた内容を完成レポートとして扱い、受け取り済みのPARTを破棄しますか？（「直前に戻す」で1回だけ戻せます）")) {
+        return { legacy: true, complete: false, cancelled: true };
+      }
       if (hadParts) {
+        snapshotForUndo();
         /* PART受領の途中で完成HTMLが貼られた場合。storeを畳まないと状態が
            永久にcollectingのまま残り、印刷・ダウンロードが無効化され続ける */
         partStore = { n: 0, rid: "", title: "", parts: {}, reset: null };
@@ -1146,9 +1112,7 @@ footer.site-footer a { color: var(--color-mute); }
     var replaced = [];
     var notices = [];
     var warnings = res.warnings.slice();
-    /* 2026-10-17(wide監査B1): 総数の範囲外のPART（例: 全3個なのに4/3、全4個なのに5/4）は取り込まず、
-       受け取り済みのPARTと総数も変えない。計画（partSetPlan）には採用したPARTだけを渡す。除く前に計画を立てると、
-       迷い込んだ「5/4」が総数の変更と見なされ、受け取り済みのPARTが全部落ちる */
+    /* 総数の範囲外のPART（例: 全3個なのに4/3、全4個なのに5/4）は取り込まず、受け取り済みのPARTと総数も変えない。計画（partSetPlan）には採用したPARTだけを渡す。除く前に計画を立てると、迷い込んだ「5/4」が総数の変更と見なされ、受け取り済みのPARTが全部落ちる */
     var outOfRange = [];
     var accepted = res.parts.filter(function (p) {
       if (p.k > res.maxN || p.k < 1) { outOfRange.push(p.k); return false; }
@@ -1157,8 +1121,7 @@ footer.site-footer a { color: var(--color-mute); }
     var plan = accepted.length ? RR.partSetPlan(partStore, { parts: accepted, maxN: res.maxN }) : null;
     if (plan) applyPlan(plan, notices);
     if (outOfRange.length) notices.push("PART " + outOfRange.join("、") + " は総数（全" + res.maxN + "個）の範囲外なので取り込みませんでした。番号を確認して、正しいPARTを貼ってください");
-    /* 2026-10-15(独立レビュー): 1回の貼り付けに同じPARTが複数入っていても「1回の到着」として数える
-       （AIの1回の返信を2回と数えて、再出力していないのに2回目の案内へ進めない）。回数は貼り付け前の値から+1 */
+    /* 1回の貼り付けに同じPARTが複数入っていても「1回の到着」として数える（AIの1回の返信を2回と数えて2回目の案内へ進めない）。回数は貼り付け前の値から+1 */
     var truncBefore = {};
     accepted.forEach(function (p) {
       var pe = partStore.parts[p.k];
@@ -1168,18 +1131,13 @@ footer.site-footer a { color: var(--color-mute); }
       var prevEntry = partStore.parts[p.k];
       if (prevEntry) replaced.push(p.k);
       var entry = { body: p.body, hasEnd: p.hasEnd, endedByNextMarker: p.endedByNextMarker, at: Date.now() };
-      /* 2026-10-15: 同じPARTが連続して途中切れで届いた回数を数える（RR-ENDで完結して届けば数えない＝リセット）。
-         出力上限の小さいAIで「出し直して」→同じ位置で切れる、の往復が無限に続くのを、案内の段階化
-         （2回目で分割・3回目で大容量AIへ）で止めるための入力（rr-checks.js の truncGuidance） */
+      /* 同じPARTが連続して途中切れで届いた回数を数える（RR-ENDで完結して届けば数えない＝リセット）。出力上限の小さいAIで「出し直して」→同じ位置で切れる往復が続くのを、案内の段階化（2回目で分割・3回目で大容量AIへ）で止めるための入力（rr-checks.js の truncGuidance） */
       if (RR.isPartTruncated(entry, p.k, partStore.n)) {
-        /* 2026-10-15(wide監査B1): 総数が増えた貼り付け＝AIが分割に従った。その分割後のPARTがまた切れて届いたなら、
-           分割は1回試した（出し直し→分割→まだ切れる）ので3回目の案内（大容量AI）から始める。1回目に戻すと
-           分割を総数の上限まで勧め続ける。分割していないPART（回数を消された温存分）はこの対象外 */
+        /* 総数が増えた貼り付け＝AIが分割に従った。その分割後のPARTがまた切れて届いたなら、分割は1回試した（出し直し→分割→まだ切れる）ので3回目の案内（大容量AI）から始める。1回目に戻すと分割を総数の上限まで勧め続ける。分割していないPART（回数を消された温存分）はこの対象外 */
         entry.trunc = (plan.mode === "newCount" && plan.n > plan.prevN) ? Math.max(3, truncBefore[p.k] + 1) : truncBefore[p.k] + 1;
       }
       partStore.parts[p.k] = entry;
-      /* 2026-10-15(出力上限の学習): 途中切れの届いた字数 X は、そのチャットの1回の出力上限にほぼ相当する。
-         X が十分大きい（貼り損ねでない）ときだけ学習し、縮める方向にだけ更新する（完結したPARTや大きい切れでは上げない） */
+      /* 途中切れの届いた字数 X は、そのチャットの1回の出力上限にほぼ相当する。X が十分大きい（貼り損ねでない）ときだけ学習し、縮める方向にだけ更新する（完結したPARTや大きい切れでは上げない） */
       if (entry.trunc) {
         var xLen = String(entry.body || "").trim().length;
         if (xLen >= RR.MIN_CAP_X) {
@@ -1261,7 +1219,53 @@ footer.site-footer a { color: var(--color-mute); }
     }, hint);
   }
 
+  /* クリア・完成HTML貼付による破棄は結果一覧まで消えるため、直前の状態を1段だけ退避し「直前に戻す」で復元できるようにする */
+  var UNDO_KEY = "rr_viewer_undo_v1";
+  /* confirm が未実装の環境（自動テストのjsdom等）は undefined を返す。明示的な「キャンセル」（false）だけ止める */
+  function askConfirm(msg) { try { return window.confirm(msg) !== false; } catch (e) { return true; } }
+  function snapshotForUndo() {
+    try {
+      sessionStorage.setItem(UNDO_KEY, JSON.stringify({ parts: partStore, rl: resultListStore, src: lastFinalizeSrc }));
+      if (undoBtn) undoBtn.hidden = false;
+    } catch (e) { /* 退避できなくても操作自体は続ける */ }
+  }
+  function restoreFromUndo() {
+    var raw = null;
+    try { raw = sessionStorage.getItem(UNDO_KEY); } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      var obj = JSON.parse(raw);
+      partStore = (obj.parts && obj.parts.parts) ? obj.parts : { n: 0, rid: "", title: "", parts: {}, reset: null };
+      resultListStore = Array.isArray(obj.rl) ? obj.rl : [];
+      persistStore(); persistResultListStore();
+      sessionStorage.removeItem(UNDO_KEY);
+      if (undoBtn) undoBtn.hidden = true;
+      eventNotice = "直前の状態に戻しました";
+      if (obj.src && typeof obj.src.html === "string") finalize(obj.src.html, obj.src.info || {});
+      else { currentHtml = ""; updateStatusUI(); }
+      syncCheckBtn();
+    } catch (e) { eventNotice = "直前の状態を戻せませんでした"; updateStatusUI(); }
+  }
+  if (undoBtn) undoBtn.addEventListener("click", restoreFromUndo);
+  if (statusChips) statusChips.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("button.part-chip-del");
+    if (!b) return;
+    var k = parseInt(b.getAttribute("data-part"), 10);
+    if (!(k >= 1) || !partStore.parts[k]) return;
+    snapshotForUndo();
+    delete partStore.parts[k];
+    persistStore();
+    eventNotice = "PART " + k + " を外しました";
+    var st = RR.partStatus(partStore);
+    if (st.complete) finalize(RR.assembleParts(partStore), { parts: st });
+    else { currentHtml = ""; lastResults = []; resultsBox.classList.remove("is-visible"); previewPanel.classList.remove("is-visible"); iframe.srcdoc = ""; updateStatusUI(); }
+    syncCheckBtn();
+  });
+
   clearBtn.addEventListener("click", function () {
+    var hasContent = !!(currentHtml || partStore.n || Object.keys(partStore.parts).length || resultListStore.length);
+    if (hasContent && !askConfirm("貼り付けたPART・結果一覧・検査結果をすべて消します。よろしいですか？（「直前に戻す」で1回だけ戻せます）")) return;
+    if (hasContent) snapshotForUndo();
     input.value = "";
     currentHtml = "";
     partStore = { n: 0, rid: "", title: "", parts: {}, reset: null };
@@ -1328,9 +1332,7 @@ footer.site-footer a { color: var(--color-mute); }
       var ta = document.createElement("textarea");
       ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
-      /* 2026-09-04(第4回徹底監査・MEDIUM-8): execCommandの戻り値を見ずにdone()を呼んでいたため、
-         コピーが実際には失敗（falseを返した）していても「コピーしました」と表示し、
-         fixRoundsが誤って加算されていた（dispatch.htmlのfallbackCopyは既に戻り値を見ている） */
+      /* execCommandの戻り値を見ずにdone()を呼ぶと、コピーが実際には失敗（falseを返した）していても「コピーしました」と表示し、fixRoundsが誤って加算される（dispatch.htmlのfallbackCopyは戻り値を見ている） */
       var ok = false;
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       document.body.removeChild(ta);

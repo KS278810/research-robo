@@ -6,6 +6,12 @@
 <title>ResearchRobo ｜ エンジニアのためのベンチマーク調査ツール</title>
 <meta name="description" content="調べたいことを書くだけ。AIチャットのDeep Researchを、出典で裏づけられた証拠ベースのベンチマーク調査レポートに変える無料のプロンプトキット。登録不要・CC BY 4.0。">
 <link rel="canonical" href="https://ks278810.github.io/research-robo/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"WebSite","name":"ResearchRobo","url":"https://ks278810.github.io/research-robo/","inLanguage":"ja"},
+ {"@type":"SoftwareApplication","name":"Research KIT","applicationCategory":"BusinessApplication","operatingSystem":"Any","url":"https://ks278810.github.io/research-robo/","license":"https://creativecommons.org/licenses/by/4.0/","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}
+]}
+</script>
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ResearchRobo">
@@ -42,8 +48,7 @@ if (location.hostname === 'ks278810.github.io' && location.pathname.indexOf('/re
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- 2026-09-14(Phase4): 社内ネットワーク等でGoogle Fontsに到達できなくても
-     初回描画をブロックしない（media=printでロード後にallへ切替。noscript版も残す） -->
+<!-- 社内ネットワーク等でGoogle Fontsに到達できなくても初回描画をブロックしない（media=printでロード後にallへ切替。noscript版も残す） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap"></noscript>
 
@@ -265,7 +270,10 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .nav-links a { font-size: 0.9rem; font-weight: 500; color: var(--color-main); }
 .nav-links a:hover { color: var(--color-accent); }
 @media (max-width: 780px) {
-  .nav-links { display: none; }
+  /* ナビを消すとビューア・FAQへの導線がスマホで無くなるため、詰めて残す */
+  .site-header .container { flex-wrap: wrap; row-gap: 0.3rem; }
+  .nav-links { width: 100%; justify-content: space-between; gap: 0.6rem; }
+  .nav-links a { font-size: 0.8rem; }
 }
 
 /* ============================================================
@@ -315,19 +323,14 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   align-items: center;
 }
 @media (max-width: 780px) {
-  /* minmax(0, 1fr)にしないと、grid item既定のmin-width:autoにより
-     h1(keep-all)の未分割トークンがそのまま列幅を押し広げてしまう
-     （2026-10-03、/my-audit 2回目・L8で320px幅のはみ出しとして発見） */
+  /* minmax(0, 1fr)にしないと、grid item既定のmin-width:autoによりh1(keep-all)の未分割トークンが列幅を押し広げてしまう */
   .hero-top { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 360px) {
   /* h1は keep-all のため「ベンチマーク調査ツール」は分割されない単一トークンになる。
      極小幅ではフォントサイズを下げて1行の幅をコンテナ内に収める */
   :root { --fs-h1: clamp(1.4rem, 1.1rem + 2.6vw, 2rem); }
-  /* 2026-10-14(監査・vistestに320pxを追加して発見): 「実例レポートをPDFで見る・15ページ」は
-     nowrapのまま307px幅になり、コンテナ(280px)の右へ約8pxはみ出して端が切れていた
-     （本番HEADでも同じ。横スクロールはbody overflow-x:hiddenで出ないが見た目が欠ける）。
-     極小幅では折り返しを許す。コピー系ボタンは文言長を別規則で管理しているので対象外 */
+  /* 「実例レポートをPDFで見る」は nowrap のままだと極小幅でコンテナの右にはみ出して端が切れるため、極小幅では折り返しを許す。コピー系ボタンは文言長を別規則で管理しているので対象外 */
   .btn-outline { padding-inline: 0.5rem; font-size: 0.875rem; max-width: 100%; text-align: center; }
   /* 1行に収める（14px・左右余白0.5remで約258px、コンテナ280px）。万一のフォント差で溢れる場合だけ
      折り返し、語の途中（「15ペ/ージ」）で切れないよう均等割りにする */
@@ -361,7 +364,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 /* inline-blockはベースライン揃えなので、下端に行ボックス由来の隙間が出る。
    vertical-align:top で消す */
 .cta-final .copy-box { display: inline-block; vertical-align: top; width: auto; text-align: center; padding: 0.85rem 0.9rem; }
-/* 2026-10-09: 最下部CTAの枠・ボタンを中央揃えにしたのに合わせ、枠の見出し行も中央寄せ（以前はspace-between） */
+/* 最下部CTAの枠・ボタンを中央揃えにしたのに合わせ、枠の見出し行も中央寄せ */
 .theme-input { display: block; width: 100%; max-width: 390px; margin: 0 auto 0.75rem; padding: 0.55rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9375rem; color: inherit; background: #fff; box-sizing: border-box; }
 .copy-box-head { display: flex; align-items: center; justify-content: flex-start; text-align: left; width: min(390px, 100%); margin: 0 auto 0.4rem; }
 .copy-box-label { font-size: 0.8125rem; font-weight: 700; color: var(--color-sub-text); letter-spacing: 0.04em; }
@@ -409,6 +412,12 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-note { margin: 0.55rem 0 0; font-size: 0.72rem; color: var(--color-mute); text-align: center; line-height: 1.6; }
 .cta-final .copy-note { color: rgba(255,255,255,0.72); }
 .copy-fallback { font-size: 0.75rem; color: var(--color-mute); margin-top: 0.55rem; }
+.hero-req { font-size: 0.8125rem; color: var(--color-sub-text); max-width: 34em; margin-top: 0.7rem; line-height: 1.6; }
+.copy-choice-dr { flex-basis: 100%; text-align: center; font-size: 0.72rem; color: var(--color-sub-text); margin-top: -0.2rem; }
+.cta-final .copy-choice-dr { color: rgba(255,255,255,0.78); }
+.copy-next { margin-top: 0.7rem; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-left: 4px solid var(--color-accent); border-radius: 8px; font-size: 0.8125rem; line-height: 1.6; background: rgba(13,148,136,0.06); }
+.copy-next[hidden] { display: none; }
+.copy-next a { color: var(--color-accent); text-decoration: underline; font-weight: 700; }
 .copy-fallback a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; font-weight: 700; }
 .copy-fallback a:hover { color: var(--color-accent-dark); }
 .copy-fallback--light { color: rgba(255,255,255,0.65); }
@@ -439,7 +448,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   width: 78px;
   z-index: 2;
   filter: drop-shadow(0 8px 12px rgba(15,42,67,0.18));
-  animation: peek-idle 7s ease-in-out infinite;
+  animation: peek-idle 7s ease-in-out 3;
   transform-origin: 50% 90%;
 }
 @keyframes peek-idle {
@@ -624,7 +633,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .copy-choice { display: flex; gap: 0.9rem; flex-wrap: wrap; justify-content: center; }
 /* 注記（copy-choice-note）の文字数が版で違っても、2つのボタンが同じ大きさになるよう
    均等幅にする（以前は注記が長い方のボタンだけ大きくなっていた） */
-.copy-choice-item { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 0.5rem; flex: 1 1 220px; max-width: 390px; }
+.copy-choice-item { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem; flex: 1 1 220px; max-width: 390px; }
 /* 作業時間は、ボタンの右に置く正方形の札に「作業／5分」の2行で収める */
 .copy-choice-note { flex: none; width: 3.1rem; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.75rem; line-height: 1.3; color: var(--color-sub-text); font-weight: 700; }
 @media (max-width: 520px) { .copy-choice { flex-direction: column; align-items: stretch; } .copy-choice-item .btn { width: 100%; justify-content: center; } }
@@ -739,8 +748,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .rf-count { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--color-main); }
 .rf-hint { font-size: 0.75rem; }
 @media (max-width: 780px) {
-  /* .hero-topと同じ理由（2026-10-03、L8）: minmax(0, 1fr)でgrid itemの
-     intrinsic min-widthによる列幅の押し広げを防ぐ */
+  /* .hero-topと同じ理由: minmax(0, 1fr)でgrid itemのintrinsic min-widthによる列幅の押し広げを防ぐ */
   .report-wrap { grid-template-columns: minmax(0, 1fr); }
   .rf-hint { display: none; }
 }
@@ -845,7 +853,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   inset-block-start: -28%;
   background: radial-gradient(circle, rgba(45,212,191,0.30), transparent 65%);
   border-radius: 50%;
-  animation: glow-breathe 6s ease-in-out infinite alternate;
+  animation: glow-breathe 6s ease-in-out 6 alternate;
   pointer-events: none;
 }
 .cta-glow--2 {
@@ -877,7 +885,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
 .cta-final .copy-box-label { color: #7DD3C0; }
 .cta-final .copy-choice-note { color: rgba(255,255,255,0.86); border-color: rgba(255,255,255,0.4); }
 .cta-final-visual img { width: min(100%, 170px); }
-.mascot-breathe { animation: mascot-breathe 3.2s ease-in-out infinite; }
+.mascot-breathe { animation: mascot-breathe 3.2s ease-in-out 4; }
 @keyframes mascot-breathe {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-6px) scale(1.015); }
@@ -965,6 +973,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <p class="hero-sub">
           Deep Researchの回答を、出典と突き合わせて検査したレポートへ。技術動向から競合調査まで。
         </p>
+        <p class="hero-req">必要なもの：長文を貼れるAIチャット（Gemini・Claude・ChatGPT有料プラン等）が1つ。手順書は無料ですが、AIの契約と「しっかり調べる」のDeep Research枠は別に必要です。根拠確認は収集時の抜粋との突き合わせで、原資料を開き直す再確認ではありません。</p>
       </div>
 
       <div class="copy-box" id="hero-copy-box">
@@ -979,14 +988,19 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
             <span class="copy-choice-note">作業<br>5分</span>
+            <span class="copy-choice-dr">Deep Research 不要・迷ったらこちら</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
             <span class="copy-choice-note">作業<br>10分</span>
+            <span class="copy-choice-dr">Deep Research 要（3回前後）</span>
           </div>
         </div>
         <p class="copy-fallback" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
         <p class="sr-only" aria-live="polite" id="hero-copy-status"></p>
+        <div class="copy-next" id="hero-copy-next" hidden>
+          <strong>次の一手：</strong>AIチャットを開いて貼り付け、そのまま送信してください。AIがテーマを聞いてきたら一文で答えます。届いたレポートは<a href="viewer.html">ビューア</a>に貼ると検査・PDF保存ができます。
+        </div>
       </div>
     </div>
 
@@ -1005,8 +1019,8 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
             <g id="arf-b2" class="arf-gi">
               <circle cx="292" cy="30" r="13" fill="#0d9488"/>
               <text x="292" y="35" text-anchor="middle" font-size="15" font-weight="700" fill="white">2</text>
-              <text x="292" y="54" text-anchor="middle" font-size="12" font-weight="700" fill="#0d9488">AIが分担して</text>
-              <text x="292" y="70" text-anchor="middle" font-size="12" font-weight="700" fill="#0d9488">網羅的に調査</text>
+              <text x="292" y="54" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">AIが分担して</text>
+              <text x="292" y="70" text-anchor="middle" font-size="12" font-weight="700" fill="#0F766E">網羅的に調査</text>
             </g>
             <g id="arf-b3" class="arf-gi">
               <circle cx="491" cy="30" r="13" fill="#1740b0"/>
@@ -1053,7 +1067,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
             </g>
 
             <g id="arf-a1" class="arf-gi">
-              <rect x="212" y="100" width="160" height="40" rx="9" fill="#0d9488"/>
+              <rect x="212" y="100" width="160" height="40" rx="9" fill="#0F766E"/>
               <rect x="222" y="111" width="20" height="16" rx="4" fill="white"/>
               <circle cx="228.5" cy="119" r="1.6" fill="#0d9488"/>
               <circle cx="235.5" cy="119" r="1.6" fill="#0d9488"/>
@@ -1065,7 +1079,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
               <text x="353" y="130" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">レポート</text>
             </g>
             <g id="arf-a2" class="arf-gi">
-              <rect x="212" y="150" width="160" height="40" rx="9" fill="#0d9488"/>
+              <rect x="212" y="150" width="160" height="40" rx="9" fill="#0F766E"/>
               <rect x="222" y="161" width="20" height="16" rx="4" fill="white"/>
               <circle cx="228.5" cy="169" r="1.6" fill="#0d9488"/>
               <circle cx="235.5" cy="169" r="1.6" fill="#0d9488"/>
@@ -1077,7 +1091,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
               <text x="353" y="180" text-anchor="middle" font-size="4.6" font-weight="800" fill="white">レポート</text>
             </g>
             <g id="arf-a3" class="arf-gi">
-              <rect x="212" y="200" width="160" height="40" rx="9" fill="#0d9488"/>
+              <rect x="212" y="200" width="160" height="40" rx="9" fill="#0F766E"/>
               <rect x="222" y="211" width="20" height="16" rx="4" fill="white"/>
               <circle cx="228.5" cy="219" r="1.6" fill="#0d9488"/>
               <circle cx="235.5" cy="219" r="1.6" fill="#0d9488"/>
@@ -1230,6 +1244,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         <div class="stat-chip"><span class="stat-num" data-count="124">0</span><span class="stat-label">公開資料</span></div>
         <div class="stat-chip"><span class="stat-num" data-count="285">0</span><span class="stat-label">確認事実</span></div>
       </div>
+      <p class="report-caveat">※ 上の数値は、下のPDF（内容は架空のサンプル）の値です。</p>
       <ul class="report-list">
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>A4横向き、読みやすい日本語フォントで構成</li>
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>本文・表に論文形式の引用番号を付与</li>
@@ -1241,7 +1256,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     <div class="report-flip" id="report-flip">
       <div class="rf-stage" id="rf-stage" tabindex="0" role="group" aria-roledescription="ページめくりビューア" aria-label="実例レポートのページめくりビューア。左右の矢印キーでページを移動できます">
         <img class="rf-page is-active" id="rf-page-a" src="assets/report/page-01.webp" alt="レポート実例（内容は架空のサンプル） 1ページ目">
-        <img class="rf-page" id="rf-page-b" src="assets/report/page-02.webp" alt="" aria-hidden="true">
+        <img class="rf-page" id="rf-page-b" src="assets/report/page-02.webp" alt="" aria-hidden="true" loading="lazy">
         <button class="rf-nav rf-prev" id="rf-prev" type="button" aria-label="前のページ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
@@ -1291,7 +1306,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       <details class="faq-item reveal" style="--i:1">
         <summary>「手軽に試す」と「しっかり調べる」の違いは</summary>
         <p><strong>手軽に試す</strong>は、1つのチャットの中で調査からレポートまで終わります。テーマを答えて「OK」、あとは「次」と返信していくだけです。作業約5分。Deep Researchは使いません（調査条件の確認で「Deep Researchを使う」に変えると、別チャットで実行するプロンプトが届きます）。1つのチャットに調査結果とレポートの両方を置くため、容量の大きいAIを使ってください。</p>
-        <p><strong>しっかり調べる</strong>は、確認した調査条件から調査対象を重複なく漏れなく分け、既定で通常3本の調査プロンプトを作り、別のチャットのDeep Researchで実行します。狭いテーマは1本にまとめます。分け方とその理由も示します。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります必要な場合だけ検証用の1本を同じ本数の中に含めます。結果は1本ずつ貼り、AIの「次」を待つ進め方が基本です。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
+        <p><strong>しっかり調べる</strong>は、確認した調査条件から調査対象を重複なく漏れなく分け、既定で通常3本の調査プロンプトを作り、別のチャットのDeep Researchで実行します。狭いテーマは1本にまとめます。分け方とその理由も示します。結果を最初のチャットに戻し、集めた証拠を、レポートの草稿を見せずに監査する工程も入ります。必要な場合だけ検証用の1本を同じ本数の中に含めます。結果は1本ずつ貼り、AIの「次」を待つ進め方が基本です。作業約10分。最初のチャットに全結果を集めるので、容量の大きいAIが向いています。</p>
         <p>どちらも同じビューアでPDFにでき、出典番号と参考文献リストが付きます。迷ったら「手軽に試す」から始めて、物足りなければ同じテーマで「しっかり調べる」を実行してください。</p>
       </details>
       <details class="faq-item reveal" style="--i:2">
@@ -1341,7 +1356,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       </details>
       <details class="faq-item reveal" style="--i:12">
         <summary>内容を改変して配布してもいいですか</summary>
-        <p>CC BY 4.0のもとで、クレジット表記をすれば改変・再配布ができます。表記に必要な情報（著作者名・ライセンス・出典URL）は、手順書の冒頭のLicense行にまとめてあります。ただし、これは手順書とこのサイトに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。</p>
+        <p>手順書とサイトの文章・画像はCC BY 4.0のもとで、クレジット表記をすれば改変・再配布ができます。表記に必要な情報（著作者名・ライセンス・出典URL）は、手順書の冒頭のLicense行にまとめてあります。ビューアなどのソースコードはMITライセンスです（社内ツールへの組み込みも可能）。ただし、これは手順書・サイト・コードに対するライセンスです。作成したレポートに引用した資料の内容は、それぞれの資料の利用条件に従ってください。</p>
       </details>
       <details class="faq-item reveal" style="--i:13">
         <summary>結果の正確性は保証されますか</summary>
@@ -1376,10 +1391,12 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
           <div class="copy-choice-item">
             <button class="btn btn-primary copy-btn main-copy-btn" type="button" data-kit="lite">手軽に試す</button>
             <span class="copy-choice-note">作業<br>5分</span>
+            <span class="copy-choice-dr">Deep Research 不要・迷ったらこちら</span>
           </div>
           <div class="copy-choice-item">
             <button class="btn btn-primary-full copy-btn main-copy-btn" type="button" data-kit="full">しっかり調べる</button>
             <span class="copy-choice-note">作業<br>10分</span>
+            <span class="copy-choice-dr">Deep Research 要（3回前後）</span>
           </div>
         </div>
         <p class="copy-fallback copy-fallback--light" hidden>コピーできないときは、手順書のファイルをダウンロードして、チャットに添付してください：<a href="RESEARCH_KIT_lite_latest.md" download>手軽に試す用</a> ／ <a href="RESEARCH_KIT_latest.md" download>しっかり調べる用</a></p>
@@ -1402,6 +1419,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     </span>
     <div class="footer-links">
       <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener">CC BY 4.0</a>
+      <a href="LICENSE-CODE" target="_blank" rel="noopener">コード: MIT</a>
       <button class="footer-mail" id="footer-mail" type="button" aria-label="お問い合わせ: mailad4me@gmail.com（メールアドレスをコピー）">お問い合わせ: mailad4me@gmail.com</button>
     </div>
   </div>
@@ -1474,35 +1492,12 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     statEls.forEach(setFinal);
   }
 
-  /* ---- コピー: KIT本文を末尾に同梱する（外部URLフェッチに依存しない） ----
-     過去にChatGPT向け「URL参照の短文プロンプト」方式を試したが、ChatGPT
-     自身のURL取得は多くの場合Bingのインデックス/キャッシュ経由で、
-     デプロイ直後は「未インデックスの新URL」として取得失敗することを
-     実地確認した（2026-08-25）。また添付ファイル方式は、ファイルを
-     添付するだけでは多くのAIが「要約しますか？」等の一般応答を返すだけで
-     動作を開始しないため、添付＋別途の指示文コピーという2手が必要だった。
-
-     どちらも「AI側の外部リソース取得能力」に依存する設計だった。この
-     依存を断つため、KIT本文はコピー時にこちら側のJSでfetchし、案内文と
-     結合してクリップボードへ直接書き込む方式に統一する。ユーザーは
-     結合済みの全文をそのままAIチャットへ貼り付けるだけでよく、ChatGPT /
-     Claude / Gemini / 社内AIを問わず同じ1つのボタン・同じコピー内容で
-     動作する（Geminiのみ長文貼り付けが不安定な場合があり、その場合だけ
-     ファイル添付にフォールバックする。FAQ「どのAIチャットで使えますか」参照）。
-
-     fetch先はバージョン番号を含まない「RESEARCH_KIT_latest.md」固定URLに
-     すること。同一オリジンへのfetchなので検索エンジンのインデックス状況に
-     左右されず、常に即時に成功する。 */
+  /* ---- コピー: KIT本文を末尾に同梱する（外部URLフェッチに依存しない） ---- AIの外部URL取得は検索インデックス経由で、公開直後の新URLは取得できないことがあり、添付ファイル方式は添付だけでは多くのAIが動作を開始しない。AI側の外部リソース取得能力に依存しないよう、KIT本文はコピー時にこちら側のJSでfetchし、案内文と結合してクリップボードへ直接書き込む。ユーザーは結合済みの全文をそのままAIチャットへ貼り付けるだけでよく、どのAIでも同じボタン・同じコピー内容で動作する（Geminiのみ長文貼り付けが不安定な場合があり、その場合だけファイル添付にフォールバックする。FAQ「どのAIチャットで使えますか」参照）。fetch先はバージョン番号を含まない「RESEARCH_KIT_latest.md」固定URLにすること。同一オリジンへのfetchなので検索エンジンのインデックス状況に左右されず、常に即時に成功する。 */
   /* KITは2種類ある。ボタンの data-kit で取得先を切り替える（既定はフル版）。
      いずれもバージョン番号を含まない固定URLなので、版を上げてもここは変えない */
   var KIT_FULL = 'RESEARCH_KIT_latest.md';
   var KIT_LITE = 'RESEARCH_KIT_lite_latest.md';
-  /* 2026-09-14(Phase4): KIT本文と案内文には公開サイトのURLが焼き込まれている。社内
-     サーバ・GitLab/GHES Pages 等の別オリジン／別パスで配信されている場合、コピー時に
-     その配信元URLへ書き換える（KIT .md 自体は編集しない——kit_contract.pyのVURLピンは
-     KIT本文のリテラルを要求するため、書き換えは組み立て後の全文に対してだけ行う）。
-     判定は配信元URLの「ディレクトリ」= new URL('.', location.href)。file:// では
-     fetch自体が失敗するので書き換えない */
+  /* KIT本文と案内文には公開サイトのURLが焼き込まれている。社内サーバ・GitLab/GHES Pages 等の別オリジン／別パスで配信されている場合、コピー時にその配信元URLへ書き換える（KIT .md 自体は編集しない。書き換えは組み立て後の全文に対してだけ行う）。判定は配信元URLの「ディレクトリ」= new URL('.', location.href)。file:// では fetch自体が失敗するので書き換えない */
   var PUBLIC_BASE = 'https://ks278810.github.io/research-robo/';
   function servingBase() {
     try {
@@ -1545,10 +1540,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       if (!r.ok) throw new Error('fetch failed: ' + r.status);
       return r.text();
     }).then(function (t) {
-      /* 2026-09-04(第4回徹底監査・MEDIUM-14): 200 OKで応答が返っても、社内プロキシ・
-         captive portal等がログインページ等のHTMLを200で返すことがある（社内配信環境
-         で起こりやすい事故）。中身がKIT本文であることを軽く検査してから成功扱いにする。
-         buildFullPromptTextが末尾確認に使う見出し（# 21. / # 6.）と同じものを流用する */
+      /* 200 OKで応答が返っても、社内プロキシ・captive portal等がログインページ等のHTMLを200で返すことがある。中身がKIT本文であることを軽く検査してから成功扱いにする。buildFullPromptTextが末尾確認に使う見出し（# 21. / # 6.）と同じものを流用する */
       var tailNeedle = (file === KIT_LITE) ? '# 6. うまくいかないときの対処' : '# 21. 最重要ルールの再掲（末尾・省略不可）';
       var looksLikeKit = typeof t === 'string' && t.length > 10000 &&
         t.indexOf('# Research KIT') === 0 && t.indexOf(tailNeedle) >= 0;
@@ -1565,7 +1557,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     });
     return kitTextPromise[file];
   }
-  /* 初回描画と帯域を奪わないよう、KIT本文（合計約136KB）の先読みはアイドル時か
+  /* 初回描画と帯域を奪わないよう、KIT本文（合計約200KB）の先読みはアイドル時か
      ボタンに触れた時点まで遅らせる。SafariのClipboardItem経路はクリックの文脈で
      Promiseを解決するため先読み必須ではないが、モバイルはhoverが無いので
      アイドル先読みも併用する */
@@ -1579,9 +1571,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   if (window.requestIdleCallback) requestIdleCallback(warmKits, { timeout: 4000 });
   else setTimeout(warmKits, 2500);
 
-  /* 2026-09-14(Phase4): 社内配信時は、ダウンロードする .md も配信元URLへ書き換えた
-     内容にする（Blob）。download属性は非セキュアコンテキスト(http://)でも動く。
-     本番（公開サイト）では何もしない（クリックのデフォルト挙動のまま） */
+  /* 社内配信時は、ダウンロードする .md も配信元URLへ書き換えた内容にする（Blob）。download属性は非セキュアコンテキスト(http://)でも動く。公開サイトでは何もしない（クリックのデフォルト挙動のまま） */
   Array.prototype.forEach.call(document.querySelectorAll('a[download][href$=".md"]'), function (a) {
     a.addEventListener('click', function (ev) {
       var base = servingBase();
@@ -1609,29 +1599,27 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     ].join('\n');
   }
 
-  /* 2026-10-17: テーマ欄。1往復目にテーマを渡し、2往復目で素の入力が質問として答えられる型を断つ。
-     改行・連続空白は1空白、区切り行の偽装を防ぐため=3連以上を除き、120字で切る（サロゲートペアを壊さない） */
+  /* テーマ欄。1往復目にテーマを渡し、2往復目で素の入力が質問として答えられる型を断つ。改行・連続空白は1空白、区切り行の偽装を防ぐため=3連以上を除き、120字で切る（サロゲートペアを壊さない） */
   function getThemeText() {
     var el = document.getElementById('hero-theme');
     if (!el) return '';
     return Array.from(String(el.value || '').replace(/={3,}/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 120).join('').trim();
   }
   var NEXT_INPUT_RULE = 'ユーザーの次のメッセージは、質問や依頼や題名の形でも調査テーマである。その内容に答えず、Web検索や調査も始めず、手順書のSCRIPT A、つまり調査条件の確認だけを返すこと。';
+  /* KITは今日の日付を知る手段が無く、AIが推測で調査日を埋めてしまうため、コピー時に埋める（JST） */
+  function todayJst() {
+    var d = new Date(Date.now() + 9 * 3600 * 1000);
+    var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate());
+  }
   function buildFullPromptText(kitText, isLite) {
     var theme = getThemeText();
-    /* 貼り付け時、ChatGPTは先頭が見える。末尾にも同じ案内を置き、
-       どちらから読んでも「このまま送信すればよい」と伝わるようにする。
-       テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。
-       末尾確認用の見出しはKIT別・各KIT本体の最後の章見出し（フル版は# 21.、ライト版は# 6.）——
-       共通の見出しで確認するとライト版が偽の容量エラーを出して自分自身を案内するループになる。
-       2026-09-03(完成前の最終洗い出し・C6): 旧フル版の見出しは# 0. Mode Routerで、これは
-       KIT冒頭付近（本体の40%未満の位置）にあるため、貼り付けが途中で切れていても検出
-       できなかった（末尾確認用のはずが末尾を確認していなかった）。最終章の見出しに直す。 */
+    /* 貼り付け時、ChatGPTは先頭が見える。末尾にも同じ案内を置き、どちらから読んでも「このまま送信すればよい」と伝わるようにする。テーマはAI側から質問させ、プレースホルダ探しの手間をなくす。末尾確認用の見出しはKIT別・各KIT本体の最後の章見出し（フル版は# 21.、ライト版は# 6.）。共通の見出しで確認するとライト版が偽の容量エラーを出して自分自身を案内するループになり、冒頭付近の見出しで確認すると貼り付けが途中で切れていても検出できない */
     var tailHeading = isLite ? '# 6. うまくいかないときの対処' : '# 21. 最重要ルールの再掲（末尾・省略不可）';
-    /* 2026-09-14(Phase4): localizeKitUrlsで包む1箇所のみ。KIT本文中のviewer URL・
-       下のlite案内URL（1行下）の両方が、配信元が公開サイト以外なら書き換わる */
+    /* localizeKitUrlsで包む1箇所のみ。KIT本文中のviewer URL・下のlite案内URL（1行下）の両方が、配信元が公開サイト以外なら書き換わる */
     return localizeKitUrls([
       '以下はResearch KIT本文。この手順書に従って動作すること。',
+      '今日の日付: ' + todayJst() + '（レポートの調査日・調査実行日はこの日付を使う）',
       theme
         ? '最初の返信では、手順書のSCRIPT 0を出さず、末尾の調査テーマでSCRIPT Aから始めること。'
         : '最初の返信では、手順書の最初の指示（調査テーマを1文で尋ねる）に従うこと。',
@@ -1782,6 +1770,9 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         btn.textContent = ok ? 'コピーしました' : (message || failLabel);
         btn.setAttribute('data-copied', ok ? 'true' : 'false');
         if (statusEl) { statusEl.textContent = ok ? 'コピーしました。AIチャットに貼り付けてください。' : failStatus; }
+        /* 成功表示は1.8秒で消えるため、次に何をするかを常設パネルに残す */
+        var nextEl = (btn.closest('.copy-box') || btn.parentElement).querySelector('.copy-next');
+        if (nextEl && ok) nextEl.hidden = false;
         /* コピーできない環境では、ボタンのすぐ下に手順書のファイルの添付手段を出す
            （以前は折りたたまれたFAQの中にしかリンクが無く、行き止まりだった） */
         var fbEl = (btn.closest('.copy-box') || btn.parentElement).querySelector('.copy-fallback');
@@ -1879,6 +1870,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   function initArfDiagram() {
     var wrap = document.getElementById('arf-stage');
     if (!wrap) return;
+    var plays = 0, MAX_PLAYS = 3;
     var seq = [
       [0,     'arf-b1',  'arf-glow-b'],
       [450,   'arf-s1',  'arf-glow-b'],
@@ -1945,7 +1937,10 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
         }, delay));
       });
       var lastDelay = seq[seq.length - 1][0];
+      plays++;
       timers.push(setTimeout(function () {
+        /* 無限ループをやめる（3周で止め、最後の状態を残す） */
+        if (plays >= MAX_PLAYS) return;
         if (isVisible) { play(); } else { pendingReplay = true; }
       }, lastDelay + HOLD_MS));
     }
@@ -1957,7 +1952,7 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
   function initReportFlip() {
     var stage = document.getElementById('rf-stage');
     if (!stage) return;
-    var TOTAL = 14;   /* assets/report/page-NN.webp の枚数（dev/scripts/showcase.mjs が生成。kit_contract が枚数一致を検査） */
+    var TOTAL = 14;   /* assets/report/page-NN.webp の枚数（枚数と一致させる） */
     var current = 1;
     var animating = false;
     var imgA = document.getElementById('rf-page-a');
@@ -2044,7 +2039,6 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
       touchX = null;
     }, { passive: true });
 
-    preload(2);
     preload(15);
 
     /* ---- 拡大ライトボックス ---- */
@@ -2060,15 +2054,22 @@ p { margin: 0; text-wrap: pretty; word-break: auto-phrase; }
     }
     onChange(function (n) { if (!lb.hidden) syncLightbox(n); });
 
+    function setBackgroundInert(on) {
+      Array.prototype.forEach.call(document.querySelectorAll('body > header, body > main, body > footer'), function (el) {
+        if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+      });
+    }
     function openLightbox() {
       lastFocused = document.activeElement;
       syncLightbox(current);
       lb.hidden = false;
+      setBackgroundInert(true);
       document.body.style.overflow = 'hidden';
       document.getElementById('rf-lb-close').focus();
     }
     function closeLightbox() {
       lb.hidden = true;
+      setBackgroundInert(false);
       document.body.style.overflow = '';
       if (lastFocused && lastFocused.focus) lastFocused.focus();
     }

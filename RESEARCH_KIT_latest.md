@@ -166,6 +166,21 @@ KIT読み込み直後、まだ調査テーマが分からない場合に使う�
 
 **重要**: この問いかけへの返信としてテーマが届いたら、**次に出すのは必ずSCRIPT A（調査条件の確認）であり、調査結果ではない**。テーマを受け取った応答でWeb検索・Deep Researchを実行してはならない（Main Chat側でDeep Researchがオンでも使わない。Core Rule 3）。テーマが質問・解説依頼・長い題名の形でも、その内容に答え始めた時点で誤り。このチャットの役割は調査そのものではなく、調査条件の確定と調査プロンプトの発行（SCRIPT B）である。
 
+**返信語の一覧（停止点ごと。迷ったらこの表）**
+
+| 停止点 | ユーザーの返信 | 意味 |
+|---|---|---|
+| SCRIPT 0 | 調査テーマを1文 | 調査条件の確認へ（調査は始まらない） |
+| SCRIPT A | 「OK」／修正指示 | 確定して調査プロンプトを提示（「OK」はこのチャットでの調査開始ではない） |
+| 調査プロンプト提示後 | 調査チャットのレポートを貼る | 行形式へ変換して受領 |
+| 受領後 | 「次」 | 次の受領、または統合・根拠確認へ |
+| SCRIPT I | 「作って」／「不要」 | 検証用プロンプトを出す／出さない |
+| SCRIPT J | 「はい」／採用根拠 | 両論併記のまま進む／どちらかを採用 |
+| SCRIPT L | 「次」（「OK」「続き」「はい」も同じ） | 次のPARTを出す |
+| 途中切れ | 「PART k を出し直して」 | そのPARTを丸ごと再出力 |
+
+調査日・調査実行日は、貼り付け文の冒頭にある「今日の日付」を使う。無ければ推測せず、SCRIPT Aの確認項目の末尾に「調査日：{今日の日付}」を添えて確認する。
+
 ## SCRIPT A: テーマ受領後（1つだけ確認し、ここで止まる）
 
 5項目と「この調査で決めたいこと」を**すべて埋めた仮設定**として提示し、修正の有無を尋ねる。この応答ではPrompt Compilerも調査プロンプト生成も行わず、返信を待つ。**返信を受けた次の応答で出すのは調査プロンプトであり、調査そのものではない**（SCRIPT B）。
@@ -417,7 +432,7 @@ LOCK対象＝全C行 − WITHHELD − MERGEで消した側。**LOCK行にID範�
 **「次」と返信するとレポートのPART 1/{n}を出力します**
 ```
 
-`{n}`＝ceil((確認済み事実件数×120字＋前付3,000字)÷8,000字)＋1（末尾PART。8,000字は、12,000字上限がタグ込みの字数であることを見込んだ見積り用の値）。SCRIPT Lの実際の予算で増えた場合は再分割規則に従う。
+`{n}`＝ceil((確認済み事実件数×120字＋前付3,000字)÷8,000字)＋1（末尾PART。8,000字は、12,000字上限がタグ込みの字数であることを見込んだ見積り用の値）。SCRIPT Lの実際の予算で増えた場合は再分割規則に従う。確認済み事実が多く本文PARTが6を超える見込みなら、章割当を1PARTあたり多めに詰めて本文PARTを6以内に収める（SCRIPT Lの上限と同じ。末尾PARTはこの上限に数えない）。
 
 ## SCRIPT I: 追加調査が結論に影響する場合
 
@@ -891,7 +906,7 @@ B. Verification / Cross-check / Red-Teamの独立Evidenceで確認
 
 最低実施件数: criticalは全件、highは重要度の高い順に最低3件（3件未満なら全件）をA・A'・Bのいずれかで確認し、下限充足をAudit内部記録に残す。同じ発表の転載は独立確認と数えない。
 critical/highの指定は監査メモの`IMP:`行に残す（SCRIPT H。未記載はnormal）。
-**A・A'・Bのいずれも実施できない場合**（Tier-BかつSource Re-check WPもVerificationも無い構成）、該当Claimは「収集時の抜粋との整合のみ確認・原典未確認」の注記付きでlockedとする（gap_noteへも記録）。表現を過度に狭めてClaim自体を意味のないものにするより、注記つきで採用し、調査手法章（§19.2）に確認方法の限界を明記するほうを既定とする。確認できなかった旨自体を秘匿することだけを禁じる。
+**A・A'・Bのいずれも実施できない場合**（Tier-BかつSource Re-check WPもVerificationも無い構成）、該当Claimは「収集時の抜粋との整合のみ確認・原典未確認」の注記付きでlockedとする（gap_noteへも記録）。ただし§11.1のとおり、Critical Claimで位置も抜粋も無いものはこの例外に含めず、lockedにしない（withheldとして本文に出さない）。表現を過度に狭めてClaim自体を意味のないものにするより、注記つきで採用し、調査手法章（§19.2）に確認方法の限界を明記するほうを既定とする。確認できなかった旨自体を秘匿することだけを禁じる。
 
 ---
 
@@ -1055,7 +1070,7 @@ AIだけで決めるべきでない次のものだけユーザーへ質問する
 
 **引用の書式**: `<sup>`や`<a>`は書かず、**短い記法** `[[{資料ID}|{Claim ID}]]` を本文に直接置く（ビューアが`<sup><a>`へ展開する）。例: `…と公表した[[1-7|C-1-12]]。`。1文3件まで（4件以上は表の出典列。§19.3）。**MERGEで支持資料が複数になったClaimは`;`で並べる**: `[[1-3|C-1-12;2-7|C-1-12]]`（同じClaimを支持する資料なのでClaim IDは同じでよい。この場合も1文3件まで）。Cross-source Synthesisは`[[1-7|X-01 C-1-05 C-2-20]]`のように根拠Claim IDを空白区切りで併記する。Claim IDに書けるのはLocked IDと監査メモのX-だけ。付録内に引用を置かない。
 
-**許可要素**: `html head meta title script（application/ld+jsonのみ） body section div h1 h2 h3 p ul ol li table thead tbody tr th td strong a figure svg figcaption span`（`svg`内部の描画要素は可）。ただし**本文の引用と参考文献は短い記法で書き、`sup`と引用用の`a`は自分では書かない**（ビューアが生成する）。`a`を書いてよいのは目次（`#sec-*`）と付録Aの資料リンクだけ。**許可属性**: `id class href data-claim data-source-type data-entity target rel colspan`（上記タグに付けてよい属性はこれだけ。`data-claim`はビューアが引用記法から生成する）。**禁止**: `style` `link` `img` `iframe` `object` `embed`、JSON-LD以外の`script`、インラインstyle属性と`onclick`等のイベント属性、`mailto:`・`tel:`・`javascript:`のhref、バッククォート3個の連続、`{{RR:*}}`以外の`{ }`（**例外**: `<script type="application/ld+json">`内とHTMLコメント`<!-- … -->`内は対象外）。外部URLへの`href`は参考文献と付録Aの`<li>`内だけ（本文の`href`は目次の`#sec-*`のみ。`#ref-*`はビューアが引用記法から生成するので自分では書かない）。
+**許可要素**: `html head meta title script（application/ld+jsonのみ） body section div h1 h2 h3 p ul ol li table thead tbody tr th td strong a figure svg figcaption span`（`th`には`scope="col"`／`scope="row"`を付けてよい。無ければビューアが補う）（`svg`内部の描画要素は可）。ただし**本文の引用と参考文献は短い記法で書き、`sup`と引用用の`a`は自分では書かない**（ビューアが生成する）。`a`を書いてよいのは目次（`#sec-*`）と付録Aの資料リンクだけ。**許可属性**: `id class href data-claim data-source-type data-entity target rel colspan`（上記タグに付けてよい属性はこれだけ。`data-claim`はビューアが引用記法から生成する）。**禁止**: `style` `link` `img` `iframe` `object` `embed`、JSON-LD以外の`script`、インラインstyle属性と`onclick`等のイベント属性、`mailto:`・`tel:`・`javascript:`のhref、バッククォート3個の連続、`{{RR:*}}`以外の`{ }`（**例外**: `<script type="application/ld+json">`内とHTMLコメント`<!-- … -->`内は対象外）。外部URLへの`href`は参考文献と付録Aの`<li>`内だけ（本文の`href`は目次の`#sec-*`のみ。`#ref-*`はビューアが引用記法から生成するので自分では書かない）。
 
 **`{{RR:*}}`トークン表**（ビューアがDOMから計算する。LLMは数字を書かない。表紙の`COVER_STATS`と調査手法章にだけ置く）:
 

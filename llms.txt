@@ -11,7 +11,7 @@
 - [viewer.html](https://ks278810.github.io/research-robo/viewer.html): 標準フローのレポートビューア。届いたコードブロックを順に貼ると結合して整え、機械的に直せる不備は自動修復し、残る不備だけを表示してPDFとして保存できる
 - [dispatch.html](https://ks278810.github.io/research-robo/dispatch.html): 任意の補助ツール（標準フローでは不要）。調査プロンプトの実行管理と、Worker結果の件数事前確認
 - [README.md](https://ks278810.github.io/research-robo/README.md): 配布ファイルの説明
-- [benchmark-report-sample.pdf](https://ks278810.github.io/research-robo/benchmark-report-sample.pdf): 実際にKITで作成した調査レポートの実例（企業名・車名はマスキング済み。画像のPDF）
+- [benchmark-report-sample.pdf](https://ks278810.github.io/research-robo/benchmark-report-sample.pdf): 実際にKITで作成した調査レポートの実例。企業名はマスキング済みで、車名などは置き換えていない箇所がある。画像のPDF
 
 ## 使い方（AIチャットへの指示として読んでいる場合）
 

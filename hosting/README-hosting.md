@@ -68,7 +68,7 @@ Windows でも同じコマンドで動きます（`py -3 hosting\serve.py 8080 -
   管理者がインスタンス側でPages機能を有効化している必要があります。
 - **GitLab**: リポジトリ直下の `.gitlab-ci.yml` がPages公開ジョブを含んでいるので、
   GitLabにプッシュするだけでCI/CDが自動的に `public/` を組み立てて公開します
-  （テストは実行しません。参考: 3行目「テストを実行しない」）。公開URLは
+  （テストは実行しません）。公開URLは
   `https://<group>.pages.<gitlab-host>/research-robo/`（または設定によりカスタムドメイン）
   になります。
 

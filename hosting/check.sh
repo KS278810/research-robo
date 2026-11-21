@@ -66,10 +66,12 @@ _hz_code="$(curl -s -o /dev/null -w '%{http_code}' "${BASE}healthz" 2>/dev/null)
 echo "INFO: healthz -> ${_hz_code}（Docker/nginx=200を期待、serve.py・GitHub Pagesの404は正常）"
 
 echo
+# 取得に失敗すると本文は空になり、空同士のmd5が一致して偽のOKになる。空のmd5は失敗として扱う(2026-11-21)
+EMPTY_MD5="$(printf '' | md5sum | cut -d' ' -f1)"
 echo "=== KITミラーのバイト一致 ==="
 full_a="$(curl -fsSL "${BASE}RESEARCH_KIT_v5.2.md" 2>/dev/null | md5sum | cut -d' ' -f1)"
 full_b="$(curl -fsSL "${BASE}RESEARCH_KIT_latest.md" 2>/dev/null | md5sum | cut -d' ' -f1)"
-if [ -n "$full_a" ] && [ "$full_a" = "$full_b" ]; then
+if [ -n "$full_a" ] && [ "$full_a" != "$EMPTY_MD5" ] && [ "$full_a" = "$full_b" ]; then
   echo "OK:   RESEARCH_KIT_v5.2.md == RESEARCH_KIT_latest.md"
   pass=$((pass + 1))
 else
@@ -78,7 +80,7 @@ else
 fi
 lite_a="$(curl -fsSL "${BASE}RESEARCH_KIT_lite_v1.0.md" 2>/dev/null | md5sum | cut -d' ' -f1)"
 lite_b="$(curl -fsSL "${BASE}RESEARCH_KIT_lite_latest.md" 2>/dev/null | md5sum | cut -d' ' -f1)"
-if [ -n "$lite_a" ] && [ "$lite_a" = "$lite_b" ]; then
+if [ -n "$lite_a" ] && [ "$lite_a" != "$EMPTY_MD5" ] && [ "$lite_a" = "$lite_b" ]; then
   echo "OK:   RESEARCH_KIT_lite_v1.0.md == RESEARCH_KIT_lite_latest.md"
   pass=$((pass + 1))
 else

@@ -2369,7 +2369,7 @@
           { kind: len >= goal ? "ok" : "warn",
             title: len >= goal ? "本文の分量は目安を満たしています"
                                : "本文が目安より短めです（現在 " + len.toLocaleString("ja-JP") + "字／目安 " + goal.toLocaleString("ja-JP") + "字）。そのままでも完成できます",
-            next: len >= goal ? "" : "任意: AIに「本文を増補して」と送る" });
+            next: len >= goal ? "" : "任意: 「詳細」の全文をコピーし、AIに「本文を増補して該当PARTを出し直して」と添えて送る" });
       }
       // 17. rr:confirmed-count と本文ID（引用C ∪ UNCITED）の整合
       /* rawIdsにcanon→本文の生表記（0詰め込み）を集める。AIへの修復指示（over/missingIdsの列挙）はcanonではなくこちらで出す */
